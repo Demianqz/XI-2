@@ -436,3 +436,30 @@ tr:hover {
     background: #4CAF50;
     color: white !important;
 }
+/* ========== FITUR TUGAS ========== */
+.task-table th {
+    background: rgba(212, 175, 55, 0.3);
+    color: var(--emas);
+}
+.task-table td {
+    background: rgba(0,0,0,0.3);
+    color: #FFE6C7;
+}
+.btn-hapus {
+    background: #c0392b;
+    border: none;
+    padding: 5px 12px;
+    border-radius: 30px;
+    color: white;
+    cursor: pointer;
+}
+.btn-hapus:hover {
+    background: #e74c3c;
+}
+.filter-tugas select, .filter-tugas button {
+    background: rgba(0,0,0,0.6);
+    border: 1px solid var(--emas);
+    border-radius: 40px;
+    color: white;
+    padding: 8px 16px;
+}

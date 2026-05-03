@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>XIPHORIX | Tugas Kelas XI-2</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* tambahan kecil untuk form tugas */
+        .form-tugas {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .form-row {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .form-row label {
+            font-weight: bold;
+            color: var(--emas);
+            font-size: 0.9rem;
+        }
+        .btn-tambah {
+            background: linear-gradient(135deg, #0f4f0f, #063006);
+            border: none;
+            padding: 12px;
+            border-radius: 60px;
+            font-weight: bold;
+            cursor: pointer;
+            color: white;
+            font-size: 1rem;
+            transition: 0.2s;
+        }
+        .btn-tambah:hover {
+            transform: scale(1.02);
+            box-shadow: 0 0 15px var(--emas);
+        }
+        .filter-tugas {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+        .filter-tugas select, .filter-tugas button {
+            padding: 8px 16px;
+        }
+        .task-table th, .task-table td {
+            text-align: center;
+            vertical-align: middle;
+        }
+        .btn-hapus {
+            background: #e74c3c;
+            border: none;
+            padding: 4px 12px;
+            border-radius: 30px;
+            color: white;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+        .btn-hapus:hover {
+            background: #c0392b;
+        }
+        .empty-tugas {
+            text-align: center;
+            padding: 30px;
+            color: #ccc;
+        }
+    </style>
+</head>
+<body>
+    <div class="home-container">
+        <div class="top-status-bar">
+            <div class="live-clock" id="tugas-clock">--:--:--</div>
+            <button class="dark-mode-toggle" id="darkmode-toggle-tugas">🌙 Dark</button>
+        </div>
+
+        <div class="hero animate-fade-up">
+            <h1 class="main-title">📚 DAFTAR TUGAS</h1>
+            <p class="tagline">Kelas XI-2 • Catat & Pantau PR</p>
+        </div>
+
+        <!-- Card Form Tambah Tugas -->
+        <div class="glass-card">
+            <h2 style="text-align: center;">➕ TAMBAH TUGAS BARU</h2>
+            <div class="form-tugas">
+                <div class="form-row">
+                    <label>📖 Mata Pelajaran</label>
+                    <select id="mapel-tugas" class="siswa-select">
+                        <option value="">-- Pilih Mapel --</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <label>📝 Deskripsi Tugas</label>
+                    <input type="text" id="deskripsi-tugas" placeholder="Contoh: Halaman 20-25, kumpul minggu depan">
+                </div>
+                <div class="form-row">
+                    <label>📅 Tanggal Tenggat</label>
+                    <input type="date" id="tanggal-tugas">
+                </div>
+                <button id="btn-tambah-tugas" class="btn-tambah">✅ KIRIM TUGAS</button>
+            </div>
+        </div>
+
+        <!-- Filter & Daftar Tugas -->
+        <div class="glass-card">
+            <h3>📋 DAFTAR TUGAS YANG AKAN DATANG</h3>
+            <div class="filter-tugas">
+                <select id="filter-mapel">
+                    <option value="all">Semua Mapel</option>
+                </select>
+                <button id="reset-filter-tugas" class="btn-outline">Reset Filter</button>
+            </div>
+            <div class="table-wrapper">
+                <table id="tugas-table" class="task-table">
+                    <thead>
+                        <tr><th>No</th><th>Mata Pelajaran</th><th>Deskripsi Tugas</th><th>Tanggal Tenggat</th><th>Aksi</th></tr>
+                    </thead>
+                    <tbody id="tugas-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <center><a href="index.html" class="back-btn">⬅ Kembali ke Home</a></center>
+    </div>
+
+    <div id="toast-message" class="toast"></div>
+    <canvas id="particle-canvas" class="particle-bg"></canvas>
+
+    <script src="script.js"></script>
+    <script src="tugas.js"></script>
+</body>
+</html>
