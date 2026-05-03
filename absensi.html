@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>XIPHORIX | Smart Absensi Pro</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="auth-modal" class="auth-modal" style="display: none;">
+        <div class="auth-card glass-card">
+            <h3>🔐 Akses Absensi</h3>
+            <input type="password" id="auth-code" placeholder="Kode Akses">
+            <button id="auth-submit">Verifikasi</button>
+            <p class="auth-hint">Kode: XIPHORIX2026</p>
+        </div>
+    </div>
+
+    <div id="absensi-main" style="display: none;">
+        <div class="absensi-container">
+            <div class="absensi-header">
+                <div class="header-left">
+                    <a href="index.html" class="back-btn">← Kembali ke Home</a>
+                    <h1>📌 SMART ABSENSI PRO</h1>
+                </div>
+                <div class="header-right">
+                    <div class="live-clock" id="absensi-clock">--:--:--</div>
+                    <div class="connection-status" id="conn-status">🟢 Online</div>
+                    <button class="dark-mode-toggle" id="darkmode-toggle-abs">🌙 Dark</button>
+                </div>
+            </div>
+
+            <div class="date-info glass-card">
+                <div id="full-date-indo" class="hari-tanggal">Memuat tanggal...</div>
+                <div class="jam-extended" id="realtime-jam">00:00:00</div>
+            </div>
+
+            <div class="dashboard-grid">
+                <div class="stat-card glass-card">
+                    <div class="stat-icon">✅</div>
+                    <div class="stat-info"><h3>Total Hadir (Hari Ini)</h3><p id="stat-hadir">0</p></div>
+                </div>
+                <div class="stat-card glass-card">
+                    <div class="stat-icon">👥</div>
+                    <div class="stat-info"><h3>Siswa Absen</h3><p id="stat-unik">0 / <span id="total-siswa-tetap">36</span></p></div>
+                </div>
+                <div class="stat-card glass-card">
+                    <div class="stat-icon">📈</div>
+                    <div class="stat-info"><h3>Persentase</h3><p id="stat-persen">0%</p></div>
+                </div>
+            </div>
+
+            <div class="ranking-card glass-card">
+                <h3>🏆 RANKING 7 HARI TERAKHIR (HADIR TERBANYAK)</h3>
+                <div id="ranking-7hari" class="ranking-list">Memproses...</div>
+            </div>
+
+            <div class="form-card glass-card">
+                <h2>✍️ ABSEN HARI INI</h2>
+                <div class="form-group">
+                    <select id="pilih-siswa" class="siswa-select">
+                        <option value="">-- Pilih Nama Siswa --</option>
+                    </select>
+                </div>
+                <div class="status-pilihan">
+                    <button id="status-hadir" class="status-option hadir-opt">✅ Hadir</button>
+                    <button id="status-izin" class="status-option izin-opt">📝 Izin / Sakit (Upload Bukti)</button>
+                    <button id="status-alfa" class="status-option alfa-opt">❌ Alfa</button>
+                </div>
+                <div class="info-batas">
+                    <small>⏰ Absen hanya untuk HARI INI. Untuk Izin/Sakit wajib upload foto bukti (max 2MB).</small>
+                </div>
+            </div>
+
+            <div class="filter-card glass-card">
+                <h3>📅 LIHAT REKAP ABSEN PER TANGGAL</h3>
+                <div class="filter-group">
+                    <input type="date" id="filter-tanggal" value="">
+                    <button id="apply-filter" class="btn-outline">Tampilkan</button>
+                    <button id="reset-filter" class="btn-outline">Hari Ini</button>
+                </div>
+                <div id="filter-info" class="filter-info"></div>
+            </div>
+
+            <div class="log-card glass-card">
+                <div class="log-header">
+                    <h3>📋 LOG ABSENSI</h3>
+                    <div class="search-box">
+                        <input type="text" id="search-nama" placeholder="Cari nama...">
+                    </div>
+                </div>
+                <div class="table-wrapper">
+                    <table id="log-table">
+                        <thead>
+                            <tr><th>No</th><th>Nama</th><th>Waktu</th><th>Status</th><th>Bukti</th></tr>
+                        </thead>
+                        <tbody id="log-tbody"></tbody>
+                    </table>
+                </div>
+                <div class="admin-tools">
+                    <button id="export-json" class="btn-outline">📁 Export ke JSON</button>
+                    <button id="reset-hari" class="btn-outline warning">⚠️ Reset Data Hari Ini</button>
+                    <button id="reset-semua" class="btn-outline danger">🗑️ Reset Semua Data</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Preview Bukti -->
+    <div id="preview-modal" class="auth-modal" style="display: none;">
+        <div class="auth-card" style="max-width: 500px; width: 90%;">
+            <h3>📎 Bukti Absen</h3>
+            <img id="preview-image" src="" alt="Bukti" style="width:100%; border-radius: 16px; margin: 15px 0;">
+            <button id="close-preview" class="btn-outline">Tutup</button>
+        </div>
+    </div>
+
+    <div id="toast-message" class="toast"></div>
+    <canvas id="particle-canvas-abs" class="particle-bg"></canvas>
+    <script src="script.js"></script>
+</body>
+</html>
