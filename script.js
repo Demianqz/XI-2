@@ -358,7 +358,98 @@ function exportToJSON() {
     showToast('JSON exported!');
 }
 
-// ==================== MAIN EXECUTION ====================
+// ==================== FUNGSI UNTUK MOOD (JADWAL) ====================
+async function loadMoodFromCloud() {
+    try {
+        const response = await fetch(`${NEW_GAS_URL}?action=getMood`);
+        const data = await response.json();
+        if (data && !data.error) {
+            const today = new Date().toLocaleDateString('en-CA');
+            const todayMood = data.find(m => m.tanggal === today);
+            if (todayMood) return { happy: todayMood.happy || 0, stress: todayMood.stress || 0 };
+            return { happy: 0, stress: 0 };
+        }
+        return { happy: 0, stress: 0 };
+    } catch (e) {
+        console.warn("Mood cloud failed", e);
+        // lokal fallback
+        const stored = localStorage.getItem('xiphorix_mood');
+        return stored ? JSON.parse(stored) : { happy: 0, stress: 0 };
+    }
+}
+
+async function addMoodToCloud(type) {
+    try {
+        await fetch(NEW_GAS_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            body: JSON.stringify({ action: 'addMood', type: type })
+        });
+        // Update lokal
+        let mood = await loadMoodFromCloud();
+        mood[type]++;
+        localStorage.setItem('xiphorix_mood', JSON.stringify(mood));
+        return true;
+    } catch (e) {
+        console.error("Mood save failed", e);
+        return false;
+    }
+}
+
+// ==================== FUNGSI UNTUK TUGAS ====================
+async function loadTugasFromCloud() {
+    try {
+        const response = await fetch(`${NEW_GAS_URL}?action=getTugas`);
+        const data = await response.json();
+        if (data && !data.error) {
+            localStorage.setItem('xiphorix_tugas', JSON.stringify(data));
+            return data;
+        }
+        const stored = localStorage.getItem('xiphorix_tugas');
+        return stored ? JSON.parse(stored) : [];
+    } catch (e) {
+        console.warn("Tugas cloud failed", e);
+        const stored = localStorage.getItem('xiphorix_tugas');
+        return stored ? JSON.parse(stored) : [];
+    }
+}
+
+async function addTugasToCloud(tugas) {
+    try {
+        await fetch(NEW_GAS_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            body: JSON.stringify({ action: 'addTugas', ...tugas })
+        });
+        // Simpan lokal
+        let local = await loadTugasFromCloud();
+        local.push(tugas);
+        localStorage.setItem('xiphorix_tugas', JSON.stringify(local));
+        return true;
+    } catch (e) {
+        console.error("Tugas add failed", e);
+        return false;
+    }
+}
+
+async function deleteTugasFromCloud(id) {
+    try {
+        await fetch(NEW_GAS_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            body: JSON.stringify({ action: 'deleteTugas', id: id })
+        });
+        let local = await loadTugasFromCloud();
+        local = local.filter(t => t.id !== id);
+        localStorage.setItem('xiphorix_tugas', JSON.stringify(local));
+        return true;
+    } catch (e) {
+        console.error("Tugas delete failed", e);
+        return false;
+    }
+}
+
+
 window.addEventListener('load', () => {
     console.log('🌟 XIPHORIX Loaded - Page:', document.title);
     

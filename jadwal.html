@@ -111,54 +111,59 @@
     </div>
 
 <script>
-        let moodData = {happy: 0, stress: 0};
-        let hasVotedToday = false;
-        
-        async function initMood() {
+    let moodData = {happy: 0, stress: 0};
+    let hasVotedToday = false;
+    
+    async function initMood() {
+        moodData = await loadMoodFromCloud();
+        const today = new Date().toDateString();
+        const lastVoteDate = localStorage.getItem('moodVoteDate');
+        if (lastVoteDate === today) {
+            hasVotedToday = true;
+            document.getElementById('btn-happy').disabled = true;
+            document.getElementById('btn-stress').disabled = true;
+            document.getElementById('vote-status').innerText = "Kamu sudah vote hari ini! ✨";
+        }
+        updateUI();
+        setInterval(async () => {
             moodData = await loadMoodFromCloud();
-            const today = new Date().toDateString();
-            const lastVoteDate = localStorage.getItem('moodVoteDate');
-            if (lastVoteDate === today) {
-                hasVotedToday = true;
-            }
             updateUI();
-            // Auto refresh every 30s
-            setInterval(async () => {
-                moodData = await loadMoodFromCloud();
-                updateUI();
-            }, 30000);
+        }, 30000);
+    }
+    
+    async function castVote(type) {
+        if (hasVotedToday) return;
+        const success = await addMoodToCloud(type);
+        if (success) {
+            hasVotedToday = true;
+            localStorage.setItem('moodVoteDate', new Date().toDateString());
+            document.getElementById('btn-happy').disabled = true;
+            document.getElementById('btn-stress').disabled = true;
+            document.getElementById('vote-status').innerText = "Kamu sudah vote hari ini! ✨";
+            moodData[type]++;
+            updateUI();
+            showToast('✅ Vote mood berhasil!', 2000);
+        } else {
+            showToast('Gagal vote, coba lagi', 2000);
         }
-        
-        async function castVote(type) {
-            if (hasVotedToday) return;
-            
-            const success = await addMoodToCloud(type);
-            if (success) {
-                hasVotedToday = true;
-                localStorage.setItem('moodVoteDate', new Date().toDateString());
-                document.getElementById('btn-happy').disabled = true;
-                document.getElementById('btn-stress').disabled = true;
-                document.getElementById('vote-status').innerText = "Kamu sudah vote hari ini! ✨";
-                showToast('✅ Vote mood berhasil disimpan!', 2000);
-            }
-        }
-        
-        function updateUI() {
-            const total = moodData.happy + moodData.stress || 0;
-            const hPerc = total ? Math.round((moodData.happy / total) * 100) : 0;
-            const sPerc = total ? Math.round((moodData.stress / total) * 100) : 0;
-
-            document.getElementById('bar-happy').style.width = hPerc + '%';
-            document.getElementById('bar-happy').innerText = `Suenang ${hPerc}%`;
-            document.getElementById('bar-stress').style.width = sPerc + '%';
-            document.getElementById('bar-stress').innerText = `Suetress ${sPerc}%`;
-            document.getElementById('total-info').innerText = `Total Suara: ${total}`;
-        }
-        
-        // Init on load
-        window.addEventListener('load', initMood);
-        
-        // Button events (remove onclick, use addEventListener)
-    </script>
+    }
+    
+    function updateUI() {
+        const total = moodData.happy + moodData.stress || 0;
+        const hPerc = total ? Math.round((moodData.happy / total) * 100) : 0;
+        const sPerc = total ? Math.round((moodData.stress / total) * 100) : 0;
+        document.getElementById('bar-happy').style.width = hPerc + '%';
+        document.getElementById('bar-happy').innerText = `Suenang ${hPerc}%`;
+        document.getElementById('bar-stress').style.width = sPerc + '%';
+        document.getElementById('bar-stress').innerText = `Suetress ${sPerc}%`;
+        document.getElementById('total-info').innerText = `Total Suara: ${total}`;
+    }
+    
+    // Button events
+    document.getElementById('btn-happy').onclick = () => castVote('happy');
+    document.getElementById('btn-stress').onclick = () => castVote('stress');
+    
+    window.addEventListener('load', initMood);
+</script>
 </body>
 </html>
