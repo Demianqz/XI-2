@@ -1,28 +1,25 @@
-# XIPHORIX - Logo Replacement & Bug Fixes TODO
+# XIPHORIX - Fix Absensi Blank Screen & Script.js Issues
 
-## Current Task: Replace placeholder logo + address reported bugs
+**Status:** Active Debug Mode
 
-**Status:** Planning phase
+## Issues Reported:
+- absensi.html shows blank screen when navigated from home
+- script.js has execution problems blocking page load
+- Need COMPLETE fix
 
-### Information Gathered:
-- Logo placeholder found only in index.html
-- User reports: absensi.html works, but tugas.html and others have bugs (likely styling/link issues)
-- style.css already has menu-card fixes applied
+## Plan Analysis:
+1. script.js conflicts between home/tugas/absensi page initializers
+2. Auth modal in absensi.html not hiding properly  
+3. Potential JS errors from GAS fetch or localStorage
+4. Page detection logic broken
 
-### Plan:
-1. Replace logo src in index.html
-2. Verify/test tugas.html, jadwal.html functionality (JS loading, no console errors)
-3. Minor CSS tweaks if needed for consistency across pages
-4. Git commit changes
+## Fix Steps:
+### [✅] 1. Refactor script.js - Page-specific execution only
+### [ ] 2. Fix absensi.html auth logic + fallback UI  
+### [ ] 3. Add error boundaries & console logging
+### [ ] 4. Test navigation home → absensi → full functionality
+### [ ] 5. Verify tugas/jadwal pages still working
+### [ ] 6. Git commit all fixes
 
-**Dependent Files:** style.css (if needed)
-
-**Followup:** Test all pages, git push
-
-### Steps:
-- [✅] Step 1: Edit index.html logo (fixed with full overwrite)
-- [✅] Step 2: Test tugas.js functionality  
-- [✅] Step 3: Test jadwal.html mood voting
-- [✅] Step 4: Verify no console errors across pages
-- [ ] Step 5: Commit & push
+**Current:** Analyzing code...
 
