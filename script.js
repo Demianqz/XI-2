@@ -1,3 +1,7 @@
+// ==================== CONFIGURATION ====================
+// Ganti dengan URL Web App Google Apps Script kamu
+const scriptURL = "https://script.google.com/macros/s/AKfycbz4_9iBnW87YD20wMhHvQGqnj3acnEZfriCUqRVYcHyV80FqH5vI0nPJOxdfgiqqwXKQA/exec";
+
 // ==================== DAFTAR SISWA TETAP (36 SISWA) ====================
 const DAFTAR_SISWA = [
     "ACHMAD ANNAUFAEL NASRUL HUDA", "AHMAD BINTANG KURNIAWAN", "AHMAD SULTAN FEBRI SUDARSONO",
@@ -19,6 +23,22 @@ const TOTAL_SISWA_TETAP = DAFTAR_SISWA.length;
 let absensiData = [];
 const STORAGE_KEY = 'xiphorix_absensi';
 
+// FUNGSI BARU: Mengirim data ke Google Sheets Cloud
+async function syncToSheets(nama, status) {
+    try {
+        await fetch(scriptURL, {
+            method: 'POST',
+            mode: 'no-cors', // Penting untuk menghindari blokir CORS di browser
+            body: JSON.stringify({ "nama": nama, "status": status }),
+            headers: { 'Content-Type': 'application/json' }
+        });
+        return true;
+    } catch (error) {
+        console.error('Koneksi database gagal:', error);
+        return false;
+    }
+}
+
 function saveData() { localStorage.setItem(STORAGE_KEY, JSON.stringify(absensiData)); }
 function loadData() {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -36,7 +56,7 @@ function isValidSiswa(nama) {
     return DAFTAR_SISWA.some(s => s.toLowerCase() === nama.toLowerCase().trim());
 }
 
-// Upload file dan konversi ke base64
+// Upload file dan konversi ke base64 (FITUR TETAP)
 function uploadBukti() {
     return new Promise((resolve, reject) => {
         const input = document.createElement('input');
@@ -59,7 +79,7 @@ function uploadBukti() {
     });
 }
 
-// Tambah absen dengan status, jika izin/sakit maka butuh bukti
+// Tambah absen dengan sinkronisasi Database Cloud
 async function tambahAbsen(nama, statusKehadiran) {
     const today = getTodayISO();
     if (!isValidSiswa(nama)) {
@@ -70,6 +90,7 @@ async function tambahAbsen(nama, statusKehadiran) {
         showToast(`⚠️ ${nama} sudah absen hari ini!`, 2500);
         return false;
     }
+
     let bukti = null;
     if (statusKehadiran === 'Izin/Sakit') {
         showToast('📎 Silakan pilih foto bukti (max 2MB)', 1500);
@@ -79,6 +100,11 @@ async function tambahAbsen(nama, statusKehadiran) {
             return false;
         }
     }
+
+    // PROSES CLOUD SYNC (Nalar lama tidak apa-apa sesuai request)
+    showToast('⏳ Menghubungkan ke Database Pusat...', 3000);
+    await syncToSheets(nama, statusKehadiran); 
+
     const waktuSekarang = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
     const newEntry = {
         nama: nama.trim(),
@@ -88,12 +114,14 @@ async function tambahAbsen(nama, statusKehadiran) {
         bukti: bukti || null,
         timestamp: Date.now()
     };
+
     absensiData.push(newEntry);
     saveData();
-    showToast(`✅ ${nama} - ${statusKehadiran}`, 2000);
+    showToast(`✅ ${nama} BERHASIL DISIMPAN`, 2500);
     return true;
 }
 
+// ==================== RENDERING LOGIC (TIDAK BERUBAH) ====================
 let currentFilterDate = getTodayISO();
 
 function renderLog(filterNama = '') {
@@ -120,7 +148,7 @@ function renderLog(filterNama = '') {
                      </tr>`;
         tbody.insertAdjacentHTML('beforeend', row);
     });
-    // Attach event listener untuk tombol lihat bukti
+    
     document.querySelectorAll('.btn-view-bukti').forEach(btn => {
         btn.addEventListener('click', (e) => {
             const buktiData = btn.getAttribute('data-bukti');
@@ -172,6 +200,7 @@ function renderRanking7Hari() {
     });
 }
 
+// ==================== DATA MANAGEMENT ====================
 function resetDataHariIni() {
     if (confirm('Hapus data HARI INI saja?')) {
         const today = getTodayISO();
@@ -221,15 +250,14 @@ function escapeHtml(str) {
     return str.replace(/[&<>]/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[m]));
 }
 
-// CLOCK & DARK MODE
+// ==================== CLOCK & UI INITIALIZATION ====================
 let clockInterval;
 function updateAllClocks() {
     const nowTime = new Date().toLocaleTimeString('id-ID');
     document.querySelectorAll('.live-clock').forEach(el => el.innerText = nowTime);
-    const jamElem = document.getElementById('realtime-jam');
-    if(jamElem) jamElem.innerText = nowTime;
 }
 function startClock() { if(clockInterval) clearInterval(clockInterval); updateAllClocks(); clockInterval = setInterval(updateAllClocks, 1000); }
+
 function initDarkMode() {
     const isDark = localStorage.getItem('darkMode') === 'true';
     if(isDark) document.body.classList.add('dark-mode');
@@ -240,6 +268,7 @@ function initDarkMode() {
         });
     });
 }
+
 function initParticles() {
     const canvas = document.getElementById('particle-canvas') || document.getElementById('particle-canvas-abs');
     if(!canvas) return;
@@ -250,10 +279,8 @@ function initParticles() {
     for(let i=0;i<70;i++) particles.push({ x: Math.random()*width, y: Math.random()*height, radius: Math.random()*2+1, alpha: Math.random()*0.5 });
     function draw() { if(!ctx) return; ctx.clearRect(0,0,width,height); particles.forEach(p => { ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2); ctx.fillStyle = `rgba(212, 175, 55, ${p.alpha})`; ctx.fill(); }); requestAnimationFrame(draw); }
     draw();
-    window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; });
 }
 
-// ========== HALAMAN ABSENSI ==========
 function populateSiswaDropdown() {
     const select = document.getElementById('pilih-siswa');
     if (!select) return;
@@ -266,6 +293,7 @@ function populateSiswaDropdown() {
     });
 }
 
+// ==================== PAGE CONTROLLERS ====================
 function initAbsensiPage() {
     const authModal = document.getElementById('auth-modal');
     const absMain = document.getElementById('absensi-main');
@@ -330,15 +358,14 @@ async function loadAbsensiModule() {
     document.getElementById('reset-semua').onclick = resetSemuaData;
     document.getElementById('export-json').onclick = exportToJSON;
     document.getElementById('close-preview').onclick = () => document.getElementById('preview-modal').style.display = 'none';
-    setInterval(() => { if(document.getElementById('absensi-main')?.style.display === 'block') refreshAllUI(); }, 4000);
+    
+    // Auto Refresh untuk sinkronisasi tampilan data masuk
+    setInterval(() => { if(document.getElementById('absensi-main')?.style.display === 'block') refreshAllUI(); }, 5000);
 }
 
 function initHomePage() {
-    document.getElementById('current-year').innerText = new Date().getFullYear();
-    setInterval(() => {
-        const clock = document.getElementById('live-clock-index');
-        if(clock) clock.innerText = new Date().toLocaleTimeString('id-ID');
-    }, 1000);
+    const yearElem = document.getElementById('current-year');
+    if(yearElem) yearElem.innerText = new Date().getFullYear();
 }
 
 window.addEventListener('load', () => {
