@@ -102,13 +102,16 @@ function initCommonUI() {
 // ==================== ABSENSI PAGE FUNCTIONS ====================
 async function loadDataFromCloud() {
     try {
+        console.log('☁️ Loading absensi from cloud...');
         const response = await fetch(NEW_GAS_URL);
         absensiData = await response.json();
         localStorage.setItem(STORAGE_KEY, JSON.stringify(absensiData));
+        showToast('✅ Data cloud loaded!');
     } catch (e) {
         console.warn("Cloud load failed, using local:", e);
         const stored = localStorage.getItem(STORAGE_KEY);
         absensiData = stored ? JSON.parse(stored) : [];
+        showToast('📱 Using local data (cloud offline)');
     }
 }
 
@@ -380,6 +383,8 @@ async function loadMoodFromCloud() {
 
 async function addMoodToCloud(type) {
     try {
+        console.log(`☁️ Saving mood ${type} to cloud...`);
+        showToast('⏳ Menulis mood ke database...', 1500);
         await fetch(NEW_GAS_URL, {
             method: 'POST',
             mode: 'no-cors',
@@ -389,9 +394,11 @@ async function addMoodToCloud(type) {
         let mood = await loadMoodFromCloud();
         mood[type]++;
         localStorage.setItem('xiphorix_mood', JSON.stringify(mood));
+        showToast('✅ Mood tersimpan ke database!');
         return true;
     } catch (e) {
         console.error("Mood save failed", e);
+        showToast('📱 Saved locally (cloud offline)');
         return false;
     }
 }
@@ -416,6 +423,8 @@ async function loadTugasFromCloud() {
 
 async function addTugasToCloud(tugas) {
     try {
+        console.log('☁️ Saving tugas to cloud...');
+        showToast('⏳ Menulis tugas ke database...', 1500);
         await fetch(NEW_GAS_URL, {
             method: 'POST',
             mode: 'no-cors',
@@ -425,15 +434,19 @@ async function addTugasToCloud(tugas) {
         let local = await loadTugasFromCloud();
         local.push(tugas);
         localStorage.setItem('xiphorix_tugas', JSON.stringify(local));
+        showToast('✅ Tugas tersimpan ke database!');
         return true;
     } catch (e) {
         console.error("Tugas add failed", e);
+        showToast('📱 Tugas disimpan lokal (cloud offline)');
         return false;
     }
 }
 
 async function deleteTugasFromCloud(id) {
     try {
+        console.log('☁️ Deleting tugas from cloud...');
+        showToast('⏳ Menghapus dari database...', 1500);
         await fetch(NEW_GAS_URL, {
             method: 'POST',
             mode: 'no-cors',
@@ -442,9 +455,11 @@ async function deleteTugasFromCloud(id) {
         let local = await loadTugasFromCloud();
         local = local.filter(t => t.id !== id);
         localStorage.setItem('xiphorix_tugas', JSON.stringify(local));
+        showToast('✅ Tugas dihapus dari database!');
         return true;
     } catch (e) {
         console.error("Tugas delete failed", e);
+        showToast('📱 Dihapus lokal (cloud offline)');
         return false;
     }
 }
