@@ -1,10 +1,8 @@
-// ==================== XIPHORIX SCRIPT.JS - FIXED VERSION ====================
-// Fixed: Syntax errors, page detection, auth logic, error boundaries
+// ==================== XIPHORIX - HYBRID CLOUD + LOCALSTORAGE ====================
+// GANTI DENGAN URL DEPLOY APPS SCRIPT KAMU (YANG SUDAH FIX)
+const scriptURL = "https://script.google.com/macros/s/AKfycbzmfwPA2fZ3u5Z8FVSzRHKO0S_CE0DsLSzwOSJA3UxtUdMotGjxTx1KyFektI8FoDFUgA/exec";
 
-// ==================== CONFIGURATION ====================
-const NEW_GAS_URL = 'https://script.google.com/macros/s/AKfycbzmfwPA2fZ3u5Z8FVSzRHKO0S_CE0DsLSzwOSJA3UxtUdMotGjxTx1KyFektI8FoDFUgA/exec';
-
-// ==================== DAFTAR SISWA TETAP (36 SISWA) ====================
+// ==================== DAFTAR SISWA ====================
 const DAFTAR_SISWA = [
     "ACHMAD ANNAUFAEL NASRUL HUDA", "AHMAD BINTANG KURNIAWAN", "AHMAD SULTAN FEBRI SUDARSONO",
     "AKBAR GALIH PRAMUDYA", "ALFHANEO LINGGA SEIPUTRA", "ALMAS SHOFI MUGNI",
@@ -20,461 +18,423 @@ const DAFTAR_SISWA = [
     "SHAFIRA RAMADHANI", "VERRY BINTANG SURYAWAN", "ZAZA MEISYA PUTRI"
 ];
 const TOTAL_SISWA_TETAP = DAFTAR_SISWA.length;
-
-// ==================== GLOBAL STATE ====================
-let absensiData = [];
 const STORAGE_KEY = 'xiphorix_absensi';
-let currentFilterDate = new Date().toLocaleDateString('en-CA');
+const STORAGE_KEY_MOOD = 'xiphorix_mood';
+const STORAGE_KEY_TUGAS = 'xiphorix_tugas';
 
-// ==================== CORE UTILITY FUNCTIONS ====================
+let absensiData = [];
+let currentFilterDate = new Date().toLocaleDateString('en-CA');
+let isSyncing = false;
+
+// ========== UTILITIES ==========
 function getTodayISO() { return new Date().toLocaleDateString('en-CA'); }
 function getTanggalIndonesia() {
     return new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 }
-function isValidSiswa(nama) {
-    return DAFTAR_SISWA.some(s => s.toLowerCase() === nama.toLowerCase().trim());
-}
 function escapeHtml(str) {
-    return str.replace(/[&<>"]/g, m => ({ '&':'&amp;', '<':'<', '>':'>', '"':'"' }[m]));
+    if (!str) return '';
+    return str.replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '<', '>': '>' }[m]));
 }
-function showToast(msg, duration=2000) {
+function showToast(msg, duration = 2000) {
     const toast = document.getElementById('toast-message');
-    if(toast) { 
-        toast.innerText = msg; 
-        toast.style.display = 'block'; 
-        setTimeout(() => toast.style.display = 'none', duration); 
-    } else {
-        console.log('Toast:', msg);
+    if (toast) {
+        toast.innerText = msg;
+        toast.style.display = 'block';
+        setTimeout(() => toast.style.display = 'none', duration);
+    } else console.log('📢', msg);
+}
+function formatTanggalIndo(tglISO) {
+    if (!tglISO) return '-';
+    const [y,m,d] = tglISO.split('-');
+    return `${d}/${m}/${y}`;
+}
+
+// ========== LOCALSTORAGE (CACHE) ==========
+function loadLocalAbsensi() {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    absensiData = stored ? JSON.parse(stored) : [];
+}
+function saveLocalAbsensi() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(absensiData));
+}
+
+// ========== CLOUD SYNC ==========
+async function syncFromCloud(showLoadingToast = false) {
+    if (isSyncing) return;
+    isSyncing = true;
+    if (showLoadingToast) showToast('🔄 Menyinkronkan data...', 1500);
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 detik timeout
+        const response = await fetch(scriptURL + '?action=getAbsensi', { signal: controller.signal });
+        clearTimeout(timeoutId);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        if (data && !data.error) {
+            absensiData = data;
+            saveLocalAbsensi();
+            if (showLoadingToast) showToast('✅ Data cloud berhasil dimuat', 1500);
+            refreshAllUI();
+        } else throw new Error(data.error || 'Data kosong');
+    } catch (err) {
+        console.warn('Cloud sync gagal, pakai lokal:', err);
+        if (showLoadingToast) showToast('⚠️ Gagal sync cloud, pakai data lokal', 2000);
+        loadLocalAbsensi();
+        refreshAllUI();
+    } finally {
+        isSyncing = false;
     }
 }
 
-// ==================== COMMON UI INIT ====================
-function initCommonUI() {
-    // Clock
-    setInterval(() => {
-        const nowTime = new Date().toLocaleTimeString('id-ID');
-        document.querySelectorAll('.live-clock').forEach(el => el.textContent = nowTime);
-    }, 1000);
+async function syncToCloud(nama, status, waktu, tanggal, bukti = null) {
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        await fetch(scriptURL, {
+            method: 'POST',
+            mode: 'no-cors',
+            body: JSON.stringify({ action: 'addAbsen', nama, status, waktu, tanggal, bukti }),
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        return true;
+    } catch (err) {
+        console.warn('Gagal kirim ke cloud:', err);
+        return false;
+    }
+}
 
+// ========== ABSENSI LOGIC ==========
+function isValidSiswa(nama) {
+    return DAFTAR_SISWA.some(s => s.toLowerCase() === nama.toLowerCase().trim());
+}
+function cekAbsenHariIni(nama, tanggal) {
+    return absensiData.some(item => item.tanggal === tanggal && item.nama.toLowerCase().trim() === nama.toLowerCase().trim());
+}
+
+function uploadBukti() {
+    return new Promise((resolve) => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.onchange = (e) => {
+            const file = e.target.files[0];
+            if (!file) { resolve(null); return; }
+            if (file.size > 2 * 1024 * 1024) {
+                showToast('File max 2MB!', 2000);
+                resolve(null);
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = (ev) => resolve(ev.target.result);
+            reader.onerror = () => resolve(null);
+            reader.readAsDataURL(file);
+        };
+        input.click();
+    });
+}
+
+async function tambahAbsen(nama, statusKehadiran) {
+    const today = getTodayISO();
+    if (!isValidSiswa(nama)) { showToast(`❌ "${nama}" tidak terdaftar!`, 2500); return false; }
+    if (cekAbsenHariIni(nama, today)) { showToast(`⚠️ ${nama} sudah absen hari ini!`, 2500); return false; }
+
+    let bukti = null;
+    if (statusKehadiran === 'Izin/Sakit') {
+        showToast('📎 Upload foto bukti (max 2MB)', 1500);
+        bukti = await uploadBukti();
+        if (!bukti) { showToast('Izin/Sakit wajib upload bukti!', 2000); return false; }
+    }
+
+    const waktuSekarang = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+    const newEntry = {
+        nama: nama.trim(),
+        tanggal: today,
+        waktu: waktuSekarang,
+        status: statusKehadiran,
+        bukti: bukti || null,
+        timestamp: Date.now()
+    };
+    // Simpan lokal dulu (cepat)
+    absensiData.push(newEntry);
+    saveLocalAbsensi();
+    refreshAllUI();
+    showToast(`✅ ${nama} - ${statusKehadiran} (lokal)`, 1500);
+    // Kirim ke cloud background (tidak nge-freeze)
+    syncToCloud(nama, statusKehadiran, waktuSekarang, today, bukti).then(success => {
+        if (success) showToast(`☁️ ${nama} terkirim ke cloud`, 1500);
+        else showToast(`⚠️ ${nama} hanya tersimpan lokal, coba sync nanti`, 2000);
+    });
+    return true;
+}
+
+// ========== RENDER FUNCTIONS ==========
+function renderLog(filterNama = '') {
+    const tbody = document.getElementById('log-tbody');
+    if (!tbody) return;
+    let filtered = absensiData.filter(item => item.tanggal === currentFilterDate);
+    if (filterNama.trim()) filtered = filtered.filter(item => item.nama.toLowerCase().includes(filterNama.toLowerCase()));
+    tbody.innerHTML = '';
+    if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5">Tidak ada data untuk tanggal ini</td></tr>';
+        return;
+    }
+    filtered.forEach((item, idx) => {
+        const buktiHtml = item.bukti ? `<button class="btn-view-bukti" data-bukti="${item.bukti}">📎 Lihat</button>` : '-';
+        tbody.innerHTML += `<tr>
+            <td>${idx+1}</td>
+            <td>${escapeHtml(item.nama)}</td>
+            <td>${item.waktu}</td>
+            <td>${item.status}</td>
+            <td>${buktiHtml}</td>
+        </tr>`;
+    });
+    document.querySelectorAll('.btn-view-bukti').forEach(btn => {
+        btn.onclick = () => {
+            const previewImg = document.getElementById('preview-image');
+            if (previewImg) previewImg.src = btn.getAttribute('data-bukti');
+            const modal = document.getElementById('preview-modal');
+            if (modal) modal.style.display = 'flex';
+        };
+    });
+}
+
+function renderStatsForDate() {
+    const dataToday = absensiData.filter(item => item.tanggal === currentFilterDate);
+    const hadirCount = dataToday.filter(item => item.status === "Hadir").length;
+    const uniqueSiswa = new Set(dataToday.map(i => i.nama.toLowerCase())).size;
+    const persen = Math.round((uniqueSiswa / TOTAL_SISWA_TETAP) * 100);
+    if (document.getElementById('stat-hadir')) document.getElementById('stat-hadir').innerText = hadirCount;
+    if (document.getElementById('stat-unik')) document.getElementById('stat-unik').innerHTML = `${uniqueSiswa} / ${TOTAL_SISWA_TETAP}`;
+    if (document.getElementById('stat-persen')) document.getElementById('stat-persen').innerText = `${persen}%`;
+    const filterInfo = document.getElementById('filter-info');
+    if (filterInfo) filterInfo.innerText = `Menampilkan untuk: ${formatTanggalIndo(currentFilterDate)}`;
+}
+
+function renderRanking7Hari() {
+    const today = new Date();
+    const sevenDaysAgo = new Date(); sevenDaysAgo.setDate(today.getDate() - 7);
+    const data7Hari = absensiData.filter(item => {
+        const itemDate = new Date(item.tanggal);
+        return itemDate >= sevenDaysAgo && itemDate <= today && item.status === "Hadir";
+    });
+    const countMap = new Map();
+    data7Hari.forEach(item => {
+        const namaLow = item.nama.toLowerCase();
+        countMap.set(namaLow, (countMap.get(namaLow) || 0) + 1);
+    });
+    const sorted = Array.from(countMap.entries()).sort((a,b) => b[1] - a[1]).slice(0,5);
+    const rankDiv = document.getElementById('ranking-7hari');
+    if (!rankDiv) return;
+    if (sorted.length === 0) { rankDiv.innerHTML = '<div>Belum ada data 7 hari</div>'; return; }
+    const medals = ['🥇','🥈','🥉','📌','📌'];
+    rankDiv.innerHTML = '';
+    sorted.forEach(([nama, count], idx) => {
+        const originalNama = DAFTAR_SISWA.find(s => s.toLowerCase() === nama) || nama;
+        rankDiv.innerHTML += `<div class="rank-item">${medals[idx]} <strong>${originalNama}</strong> - ${count} x Hadir</div>`;
+    });
+}
+
+function refreshAllUI() {
+    renderLog(document.getElementById('search-nama')?.value || '');
+    renderStatsForDate();
+    renderRanking7Hari();
+}
+
+// ========== RESET & EXPORT ==========
+function resetDataHariIni() {
+    if (confirm('Hapus data HARI INI saja?')) {
+        const today = getTodayISO();
+        absensiData = absensiData.filter(item => item.tanggal !== today);
+        saveLocalAbsensi();
+        refreshAllUI();
+        showToast('Data hari ini direset (lokal)', 1500);
+        // Optional: kirim reset ke cloud? Tidak perlu, nanti sync akan timpa.
+    }
+}
+function resetSemuaData() {
+    if (confirm('HAPUS SEMUA DATA ABSENSI? (permanen)')) {
+        absensiData = [];
+        saveLocalAbsensi();
+        refreshAllUI();
+        showToast('Semua data dihapus (lokal)', 1500);
+    }
+}
+function exportToJSON() {
+    const dataStr = JSON.stringify(absensiData, null, 2);
+    const blob = new Blob([dataStr], {type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `absensi_xiphorix_${getTodayISO()}.json`;
+    a.click();
+    showToast('Export JSON berhasil');
+}
+
+// ========== MOOD (UNTUK JADWAL) ==========
+window.loadMoodFromLocal = function() {
+    const stored = localStorage.getItem(STORAGE_KEY_MOOD);
+    return stored ? JSON.parse(stored) : { happy: 0, stress: 0 };
+};
+window.saveMoodToLocal = function(mood) {
+    localStorage.setItem(STORAGE_KEY_MOOD, JSON.stringify(mood));
+};
+window.addMoodToLocal = function(type) {
+    const mood = window.loadMoodFromLocal();
+    if (type === 'happy') mood.happy++;
+    else if (type === 'stress') mood.stress++;
+    window.saveMoodToLocal(mood);
+    return mood;
+};
+
+// ========== TUGAS (UNTUK TUGAS.HTML) ==========
+window.loadTugasFromLocal = function() {
+    const stored = localStorage.getItem(STORAGE_KEY_TUGAS);
+    return stored ? JSON.parse(stored) : [];
+};
+window.saveTugasToLocal = function(tugas) {
+    localStorage.setItem(STORAGE_KEY_TUGAS, JSON.stringify(tugas));
+};
+
+// ========== UI INIT ==========
+function initCommonUI() {
+    // Clock semua halaman
+    setInterval(() => {
+        const now = new Date().toLocaleTimeString('id-ID');
+        document.querySelectorAll('.live-clock').forEach(el => el.textContent = now);
+    }, 1000);
     // Dark mode
     const isDark = localStorage.getItem('darkMode') === 'true';
-    if(isDark) document.body.classList.add('dark-mode');
+    if (isDark) document.body.classList.add('dark-mode');
     document.querySelectorAll('.dark-mode-toggle').forEach(btn => {
         btn.onclick = () => {
             document.body.classList.toggle('dark-mode');
             localStorage.setItem('darkMode', document.body.classList.contains('dark-mode'));
         };
     });
-
-    // Particles (only if canvas exists)
+    // Particles
     const canvas = document.getElementById('particle-canvas') || document.getElementById('particle-canvas-abs');
-    if(canvas) {
+    if (canvas) {
         const ctx = canvas.getContext('2d');
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
+        let width = window.innerWidth, height = window.innerHeight;
+        canvas.width = width; canvas.height = height;
         let particles = [];
-        for(let i = 0; i < 70; i++) {
-            particles.push({
-                x: Math.random() * canvas.width,
-                y: Math.random() * canvas.height,
-                radius: Math.random() * 2 + 1,
-                alpha: Math.random() * 0.5
-            });
-        }
-        function animate() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        for (let i = 0; i < 70; i++) particles.push({ x: Math.random()*width, y: Math.random()*height, radius: Math.random()*2+1, alpha: Math.random()*0.5 });
+        function draw() {
+            if (!ctx) return;
+            ctx.clearRect(0,0,width,height);
             particles.forEach(p => {
                 ctx.beginPath();
-                ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2);
                 ctx.fillStyle = `rgba(212, 175, 55, ${p.alpha})`;
                 ctx.fill();
             });
-            requestAnimationFrame(animate);
+            requestAnimationFrame(draw);
         }
-        animate();
+        draw();
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            width = canvas.width; height = canvas.height;
+        });
     }
-
     // Home year
-    const yearElem = document.getElementById('current-year');
-    if (yearElem) yearElem.textContent = new Date().getFullYear();
+    const yearSpan = document.getElementById('current-year');
+    if (yearSpan) yearSpan.textContent = new Date().getFullYear();
 }
 
-// ==================== ABSENSI PAGE FUNCTIONS ====================
-async function loadDataFromCloud() {
-    try {
-        console.log('☁️ Loading absensi from cloud...');
-        const response = await fetch(NEW_GAS_URL);
-        absensiData = await response.json();
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(absensiData));
-        showToast('✅ Data cloud loaded!');
-    } catch (e) {
-        console.warn("Cloud load failed, using local:", e);
-        const stored = localStorage.getItem(STORAGE_KEY);
-        absensiData = stored ? JSON.parse(stored) : [];
-        showToast('📱 Using local data (cloud offline)');
-    }
-}
-
-function saveDataLocally() { 
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(absensiData)); 
-}
-
+// ========== ABSENSI PAGE SPECIFIC ==========
 function populateSiswaDropdown() {
     const select = document.getElementById('pilih-siswa');
     if (!select) return;
     select.innerHTML = '<option value="">-- Pilih Nama Siswa --</option>';
     DAFTAR_SISWA.forEach(nama => {
-        const option = document.createElement('option');
-        option.value = nama;
-        option.textContent = nama;
-        select.appendChild(option);
+        const opt = document.createElement('option');
+        opt.value = nama;
+        opt.textContent = nama;
+        select.appendChild(opt);
     });
 }
 
-function renderLog(filterNama = '') {
-    const filtered = absensiData.filter(item => item.tanggal === currentFilterDate);
-    const finalData = filterNama ? filtered.filter(item => 
-        item.nama.toLowerCase().includes(filterNama.toLowerCase())
-    ) : filtered;
-    
-    const tbody = document.getElementById('log-tbody');
-    if (!tbody) return;
-    
-    tbody.innerHTML = finalData.length ? 
-        finalData.map((item, idx) => {
-            const buktiHtml = item.bukti ? 
-                `<button class="btn-view-bukti" data-bukti="${item.bukti}">📎 Lihat</button>` : '-';
-            return `
-                <tr>
-                    <td>${idx+1}</td>
-                    <td>${escapeHtml(item.nama)}</td>
-                    <td>${item.waktu}</td>
-                    <td>${item.status}</td>
-                    <td>${buktiHtml}</td>
-                </tr>`;
-        }).join('') : 
-        '<tr><td colspan="5">Tidak ada data untuk tanggal ini</td></tr>';
-    
-    // Bind bukti viewers
-    document.querySelectorAll('.btn-view-bukti').forEach(btn => {
-        btn.onclick = () => {
-            const bukti = btn.getAttribute('data-bukti');
-            document.getElementById('preview-image').src = bukti;
-            document.getElementById('preview-modal').style.display = 'flex';
-        };
-    });
-}
-
-// Initialize Absensi Page - FIXED VERSION
 function initAbsensiPage() {
-    console.log('🔍 Init Absensi Page');
-    
     const authModal = document.getElementById('auth-modal');
     const absMain = document.getElementById('absensi-main');
-    
-    if (!authModal || !absMain) {
-        console.error('❌ Absensi elements missing!');
-        return;
-    }
-    
-    // Check auth
+    if (!authModal || !absMain) return;
     const isAuth = sessionStorage.getItem('xiphorix_auth') === 'true';
-    console.log('Auth status:', isAuth);
-    
     if (isAuth) {
-        console.log('✅ Auth OK, show main');
         authModal.style.display = 'none';
         absMain.style.display = 'block';
         loadAbsensiModule();
     } else {
-        console.log('🔐 Show auth modal');
         authModal.style.display = 'flex';
-        
         const authBtn = document.getElementById('auth-submit');
         const authInput = document.getElementById('auth-code');
-        
-        if (authBtn) {
-            authBtn.onclick = () => {
-                const code = authInput.value;
-                if (code === 'XIPHORIX2026' || code === '12345') {
-                    authBtn.classList.add('btn-success');
-                    authBtn.textContent = 'BERHASIL!';
-                    sessionStorage.setItem('xiphorix_auth', 'true');
-                    setTimeout(() => {
-                        authModal.style.display = 'none';
-                        absMain.style.display = 'block';
-                        loadAbsensiModule();
-                    }, 800);
-                } else {
-                    authBtn.classList.add('btn-error');
-                    authBtn.textContent = 'SALAH!';
-                    showToast('Kode salah! Hint: XIPHORIX2026', 2000);
-                    setTimeout(() => {
-                        authBtn.classList.remove('btn-error', 'btn-success');
-                        authBtn.textContent = 'Verifikasi';
-                        authInput.value = '';
-                    }, 1500);
-                }
-            };
-        }
+        authBtn.onclick = () => {
+            if (authInput.value === 'XIPHORIX2026' || authInput.value === '12345') {
+                sessionStorage.setItem('xiphorix_auth', 'true');
+                authModal.style.display = 'none';
+                absMain.style.display = 'block';
+                loadAbsensiModule();
+            } else {
+                showToast('Kode salah! Gunakan XIPHORIX2026', 2000);
+                authInput.value = '';
+            }
+        };
     }
 }
 
 async function loadAbsensiModule() {
-    console.log('🚀 Loading Absensi Module');
-    
-    try {
-        await loadDataFromCloud();
-        populateSiswaDropdown();
-        
-        document.getElementById('full-date-indo').textContent = getTanggalIndonesia();
-        document.getElementById('total-siswa-tetap').textContent = TOTAL_SISWA_TETAP;
-        
+    // Tampilkan data lokal dulu (cepat)
+    loadLocalAbsensi();
+    populateSiswaDropdown();
+    const dateElem = document.getElementById('full-date-indo');
+    if (dateElem) dateElem.innerText = getTanggalIndonesia();
+    const totalSpan = document.getElementById('total-siswa-tetap');
+    if (totalSpan) totalSpan.innerText = TOTAL_SISWA_TETAP;
+    currentFilterDate = getTodayISO();
+    const filterInput = document.getElementById('filter-tanggal');
+    if (filterInput) filterInput.value = currentFilterDate;
+    refreshAllUI();
+
+    // Lalu sync dari cloud di background (tanpa nge-freeze)
+    syncFromCloud(true);
+
+    // Event binding
+    document.getElementById('status-hadir').onclick = () => handleAbsen('Hadir');
+    document.getElementById('status-izin').onclick = () => handleAbsen('Izin/Sakit');
+    document.getElementById('status-alfa').onclick = () => handleAbsen('Alfa');
+    document.getElementById('apply-filter').onclick = () => {
+        currentFilterDate = document.getElementById('filter-tanggal').value || getTodayISO();
+        refreshAllUI();
+    };
+    document.getElementById('reset-filter').onclick = () => {
         currentFilterDate = getTodayISO();
         document.getElementById('filter-tanggal').value = currentFilterDate;
-        
-        renderLog();
-        renderStatsForDate();
-        renderRanking7Hari();
-        
-        // Event bindings
-        document.getElementById('status-hadir').onclick = () => handleAbsen('Hadir');
-        document.getElementById('status-izin').onclick = () => handleAbsen('Izin/Sakit');
-        document.getElementById('status-alfa').onclick = () => handleAbsen('Alfa');
-        
-        document.getElementById('apply-filter').onclick = applyDateFilter;
-        document.getElementById('reset-filter').onclick = resetDateFilter;
-        document.getElementById('search-nama').oninput = (e) => renderLog(e.target.value);
-        document.getElementById('export-json').onclick = exportToJSON;
-        document.getElementById('close-preview').onclick = () => {
-            document.getElementById('preview-modal').style.display = 'none';
-        };
-        
-        // Auto sync
-        setInterval(loadDataFromCloud, 10000);
-        console.log('✅ Absensi Module Loaded');
-        
-    } catch (e) {
-        console.error('❌ Absensi Module Error:', e);
-        showToast('Error loading module. Check console.', 3000);
-    }
+        refreshAllUI();
+    };
+    document.getElementById('search-nama').oninput = (e) => renderLog(e.target.value);
+    document.getElementById('export-json').onclick = exportToJSON;
+    document.getElementById('reset-hari').onclick = resetDataHariIni;
+    document.getElementById('reset-semua').onclick = resetSemuaData;
+    const closePreview = document.getElementById('close-preview');
+    if (closePreview) closePreview.onclick = () => document.getElementById('preview-modal').style.display = 'none';
+
+    // Tombol sync manual opsional (bisa ditambahkan di HTML)
+    const syncBtn = document.getElementById('manual-sync-btn');
+    if (syncBtn) syncBtn.onclick = () => syncFromCloud(true);
 }
 
 function handleAbsen(status) {
     const select = document.getElementById('pilih-siswa');
-    if (!select || !select.value) {
-        showToast('Pilih nama siswa dulu!', 2000);
-        return;
-    }
-    
-    tambahAbsen(select.value, status).then(success => {
-        if (success) {
-            select.value = '';
-            renderLog();
-        }
+    if (!select.value) { showToast('Pilih nama dulu!', 1500); return; }
+    tambahAbsen(select.value, status).then(() => {
+        select.value = '';
+        refreshAllUI();
     });
 }
 
-function renderStatsForDate() {
-    const dataToday = absensiData.filter(item => item.tanggal === currentFilterDate);
-    const hadirCount = dataToday.filter(item => item.status === 'Hadir').length;
-    const uniqueSiswa = new Set(dataToday.map(item => item.nama.toLowerCase())).size;
-    const persen = TOTAL_SISWA_TETAP ? Math.round((uniqueSiswa / TOTAL_SISWA_TETAP) * 100) : 0;
-    
-    const statHadir = document.getElementById('stat-hadir');
-    const statUnik = document.getElementById('stat-unik');
-    const statPersen = document.getElementById('stat-persen');
-    
-    if (statHadir) statHadir.textContent = hadirCount;
-    if (statUnik) statUnik.innerHTML = `${uniqueSiswa} / ${TOTAL_SISWA_TETAP}`;
-    if (statPersen) statPersen.textContent = `${persen}%`;
-    
-    const filterInfo = document.getElementById('filter-info');
-    if (filterInfo) filterInfo.textContent = `Data ${formatTanggalIndo(currentFilterDate)}`;
-}
-
-function renderRanking7Hari() {
-    const today = new Date();
-    const weekAgo = new Date(today);
-    weekAgo.setDate(today.getDate() - 7);
-    
-    const weekData = absensiData.filter(item => {
-        const itemDate = new Date(item.tanggal);
-        return itemDate >= weekAgo && item.status === 'Hadir';
-    });
-    
-    const countMap = {};
-    weekData.forEach(item => {
-        const nameLow = item.nama.toLowerCase();
-        countMap[nameLow] = (countMap[nameLow] || 0) + 1;
-    });
-    
-    const sorted = Object.entries(countMap)
-        .sort(([,a], [,b]) => b - a)
-        .slice(0, 5)
-        .map(([name, count], i) => ({
-            name: DAFTAR_SISWA.find(s => s.toLowerCase() === name) || name,
-            count,
-            medal: ['🥇','🥈','🥉','📌','📌'][i]
-        }));
-    
-    const rankDiv = document.getElementById('ranking-7hari');
-    if (!rankDiv) return;
-    
-    rankDiv.innerHTML = sorted.length ? 
-        sorted.map(r => `<div class="rank-item">${r.medal} <strong>${r.name}</strong> - ${r.count}x</div>`).join('') :
-        '<div class="empty-rank">No data 7 days</div>';
-}
-
-function applyDateFilter() {
-    currentFilterDate = document.getElementById('filter-tanggal').value || getTodayISO();
-    renderLog();
-    renderStatsForDate();
-}
-
-function resetDateFilter() {
-    currentFilterDate = getTodayISO();
-    document.getElementById('filter-tanggal').value = currentFilterDate;
-    renderLog();
-    renderStatsForDate();
-}
-
-function formatTanggalIndo(dateStr) {
-    if (!dateStr) return '-';
-    const [y, m, d] = dateStr.split('-');
-    return `${d}/${m}/${y}`;
-}
-
-function exportToJSON() {
-    const data = absensiData.map(item => ({
-        nama: item.nama,
-        tanggal: item.tanggal,
-        waktu: item.waktu,
-        status: item.status
-    }));
-    const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `xiphorix_absensi_${getTodayISO()}.json`;
-    a.click();
-    showToast('JSON exported!');
-}
-
-// ==================== FUNGSI UNTUK MOOD (JADWAL) ====================
-async function loadMoodFromCloud() {
-    try {
-        const response = await fetch(`${NEW_GAS_URL}?action=getMood`);
-        const data = await response.json();
-        if (data && !data.error) {
-            const today = new Date().toLocaleDateString('en-CA');
-            const todayMood = data.find(m => m.tanggal === today);
-            if (todayMood) return { happy: todayMood.happy || 0, stress: todayMood.stress || 0 };
-            return { happy: 0, stress: 0 };
-        }
-        return { happy: 0, stress: 0 };
-    } catch (e) {
-        console.warn("Mood cloud failed", e);
-        // lokal fallback
-        const stored = localStorage.getItem('xiphorix_mood');
-        return stored ? JSON.parse(stored) : { happy: 0, stress: 0 };
-    }
-}
-
-async function addMoodToCloud(type) {
-    try {
-        console.log(`☁️ Saving mood ${type} to cloud...`);
-        showToast('⏳ Menulis mood ke database...', 1500);
-        await fetch(NEW_GAS_URL, {
-            method: 'POST',
-            mode: 'no-cors',
-            body: JSON.stringify({ action: 'addMood', type: type })
-        });
-        // Update lokal
-        let mood = await loadMoodFromCloud();
-        mood[type]++;
-        localStorage.setItem('xiphorix_mood', JSON.stringify(mood));
-        showToast('✅ Mood tersimpan ke database!');
-        return true;
-    } catch (e) {
-        console.error("Mood save failed", e);
-        showToast('📱 Saved locally (cloud offline)');
-        return false;
-    }
-}
-
-// ==================== FUNGSI UNTUK TUGAS ====================
-async function loadTugasFromCloud() {
-    try {
-        const response = await fetch(`${NEW_GAS_URL}?action=getTugas`);
-        const data = await response.json();
-        if (data && !data.error) {
-            localStorage.setItem('xiphorix_tugas', JSON.stringify(data));
-            return data;
-        }
-        const stored = localStorage.getItem('xiphorix_tugas');
-        return stored ? JSON.parse(stored) : [];
-    } catch (e) {
-        console.warn("Tugas cloud failed", e);
-        const stored = localStorage.getItem('xiphorix_tugas');
-        return stored ? JSON.parse(stored) : [];
-    }
-}
-
-async function addTugasToCloud(tugas) {
-    try {
-        console.log('☁️ Saving tugas to cloud...');
-        showToast('⏳ Menulis tugas ke database...', 1500);
-        await fetch(NEW_GAS_URL, {
-            method: 'POST',
-            mode: 'no-cors',
-            body: JSON.stringify({ action: 'addTugas', ...tugas })
-        });
-        // Simpan lokal
-        let local = await loadTugasFromCloud();
-        local.push(tugas);
-        localStorage.setItem('xiphorix_tugas', JSON.stringify(local));
-        showToast('✅ Tugas tersimpan ke database!');
-        return true;
-    } catch (e) {
-        console.error("Tugas add failed", e);
-        showToast('📱 Tugas disimpan lokal (cloud offline)');
-        return false;
-    }
-}
-
-async function deleteTugasFromCloud(id) {
-    try {
-        console.log('☁️ Deleting tugas from cloud...');
-        showToast('⏳ Menghapus dari database...', 1500);
-        await fetch(NEW_GAS_URL, {
-            method: 'POST',
-            mode: 'no-cors',
-            body: JSON.stringify({ action: 'deleteTugas', id: id })
-        });
-        let local = await loadTugasFromCloud();
-        local = local.filter(t => t.id !== id);
-        localStorage.setItem('xiphorix_tugas', JSON.stringify(local));
-        showToast('✅ Tugas dihapus dari database!');
-        return true;
-    } catch (e) {
-        console.error("Tugas delete failed", e);
-        showToast('📱 Dihapus lokal (cloud offline)');
-        return false;
-    }
-}
-
-
-window.addEventListener('load', () => {
-    console.log('🌟 XIPHORIX Loaded - Page:', document.title);
-    
+// ========== MAIN ENTRY ==========
+window.addEventListener('DOMContentLoaded', () => {
     initCommonUI();
-    
-    // Page detection
-    if (document.getElementById('auth-modal')) {
-        console.log('📋 Absensi page detected');
-        initAbsensiPage();
-    }
-    
-    console.log('✅ Init complete');
+    if (document.getElementById('auth-modal')) initAbsensiPage();
 });
