@@ -1,20 +1,28 @@
+# XIPHORIX - Logo Replacement & Bug Fixes TODO
 
-# XIPHORIX DATABASE - LIVE SYNC PLAN
+## Current Task: Replace placeholder logo + address reported bugs
 
-**Status:** Plan APPROVED ✅
-**GAS URL:** https://script.google.com/macros/s/AKfycbzmfwPA2fZ3u5Z8FVSzRHKO0S_CE0DsLSzwOSJA3UxtUdMotGjxTx1KyFektI8FoDFUgA/exec
-**Sheets:** https://docs.google.com/spreadsheets/d/1Mvlci4LHUDNdKVRHJU08CJMNRLX77F75rtSt5AAzKgM/edit
+**Status:** Planning phase
 
-## TODO STEPS:
+### Information Gathered:
+- Logo placeholder found only in index.html
+- User reports: absensi.html works, but tugas.html and others have bugs (likely styling/link issues)
+- style.css already has menu-card fixes applied
 
-### [ ] 1. Create TODO.md (NOW)
-### ✅ 2. Update script.js - Add tugas/mood GAS functions
-### ✅ 3. Update tugas.js - Replace localStorage → GAS sync 
-### ✅ 4. Update jadwal.html - Mood voting → GAS
-### ✅ 5. Add sync status UI in tugas.html
-### [ ] 6. Test live sync (multi-tab)
-### [ ] 7. Update GAS code to full version (user paste)
-### [ ] 8. COMPLETE ✅
+### Plan:
+1. Replace logo src in index.html
+2. Verify/test tugas.html, jadwal.html functionality (JS loading, no console errors)
+3. Minor CSS tweaks if needed for consistency across pages
+4. Git commit changes
 
-**Current Step: 1/8**
+**Dependent Files:** style.css (if needed)
+
+**Followup:** Test all pages, git push
+
+### Steps:
+- [✅] Step 1: Edit index.html logo (fixed with full overwrite)
+- [✅] Step 2: Test tugas.js functionality  
+- [✅] Step 3: Test jadwal.html mood voting
+- [✅] Step 4: Verify no console errors across pages
+- [ ] Step 5: Commit & push
 
