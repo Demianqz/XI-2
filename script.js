@@ -1,5 +1,4 @@
 // ==================== CONFIGURATION ====================
-// URL Web App dari Google Apps Script
 const scriptURL = "https://script.google.com/macros/s/AKfycbyarN6zSYcmIFtMLN2-M_4_DOgtlO-i45E36I21upbg32k8GLwoTuEc6i1VRx58drB63A/exec";
 
 // ==================== DAFTAR SISWA TETAP (36 SISWA) ====================
@@ -26,13 +25,12 @@ let currentFilterDate = new Date().toLocaleDateString('en-CA');
 
 // ==================== CORE FUNCTIONS (SINKRONISASI) ====================
 
-// AMBIL DATA DARI CLOUD (Agar semua HP sinkron)
 async function loadDataFromCloud() {
     try {
         const response = await fetch(scriptURL);
         const data = await response.json();
         absensiData = data;
-        saveDataLocally(); // Backup ke lokal
+        saveDataLocally();
         refreshAllUI();
     } catch (e) {
         console.warn("Gagal ambil data cloud, menggunakan backup lokal.");
@@ -40,12 +38,11 @@ async function loadDataFromCloud() {
     }
 }
 
-// KIRIM DATA KE CLOUD
 async function syncToSheets(nama, status, waktu) {
     try {
         await fetch(scriptURL, {
             method: 'POST',
-            mode: 'no-cors', // Menghindari masalah CORS
+            mode: 'no-cors',
             body: JSON.stringify({ "nama": nama, "status": status, "waktu": waktu }),
             headers: { 'Content-Type': 'application/json' }
         });
@@ -124,10 +121,8 @@ async function tambahAbsen(nama, statusKehadiran) {
     const waktuSekarang = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
     showToast('⏳ Menghubungkan ke Database Pusat...', 3000);
     
-    // Kirim ke Cloud
     await syncToSheets(nama, statusKehadiran, waktuSekarang);
 
-    // Simpan ke List Lokal
     const newEntry = {
         nama: nama.trim(),
         tanggal: today,
@@ -319,7 +314,7 @@ function populateSiswaDropdown() {
     });
 }
 
-// ==================== PAGE CONTROLLERS ====================
+// ==================== PAGE CONTROLLERS (FIXED AUTH) ====================
 function initAbsensiPage() {
     const authModal = document.getElementById('auth-modal');
     const absMain = document.getElementById('absensi-main');
@@ -328,13 +323,33 @@ function initAbsensiPage() {
     const isAuth = sessionStorage.getItem('xiphorix_auth') === 'true';
     if(!isAuth) {
         authModal.style.display = 'flex';
+        
         document.getElementById('auth-submit').onclick = () => {
-            if(document.getElementById('auth-code').value === 'XIPHORIX2026') {
-                sessionStorage.setItem('xiphorix_auth', 'true');
-                authModal.style.display = 'none';
-                absMain.style.display = 'block';
-                loadAbsensiModule();
-            } else showToast('Kode salah!', 1500);
+            const inputField = document.getElementById('auth-code');
+            const btn = document.getElementById('auth-submit');
+            const code = inputField.value;
+
+            if(code === 'XIPHORIX2026') {
+                // BENAR: HIJAU
+                btn.classList.add('btn-success');
+                btn.innerText = "BERHASIL!";
+                setTimeout(() => {
+                    sessionStorage.setItem('xiphorix_auth', 'true');
+                    authModal.style.display = 'none';
+                    absMain.style.display = 'block';
+                    loadAbsensiModule();
+                }, 800);
+            } else {
+                // SALAH: MERAH
+                btn.classList.add('btn-error');
+                btn.innerText = "SALAH!";
+                showToast('Kode salah!', 1500);
+                setTimeout(() => {
+                    btn.classList.remove('btn-error');
+                    btn.innerText = "Verifikasi";
+                    inputField.value = "";
+                }, 1500);
+            }
         };
     } else {
         authModal.style.display = 'none';
@@ -344,7 +359,7 @@ function initAbsensiPage() {
 }
 
 async function loadAbsensiModule() {
-    loadDataFromCloud(); // Tarik data cloud saat masuk
+    loadDataFromCloud();
     populateSiswaDropdown();
     document.getElementById('full-date-indo').innerText = getTanggalIndonesia();
     document.getElementById('total-siswa-tetap').innerText = TOTAL_SISWA_TETAP;
@@ -378,7 +393,6 @@ async function loadAbsensiModule() {
     document.getElementById('export-json').onclick = exportToJSON;
     document.getElementById('close-preview').onclick = () => document.getElementById('preview-modal').style.display = 'none';
     
-    // Auto Sync dari Cloud setiap 10 detik
     setInterval(loadDataFromCloud, 10000);
 }
 

@@ -226,6 +226,10 @@ th { color: var(--emas); }
     display: none;
     font-weight: bold;
 }
+
+/* =========================================
+   BAGIAN AUTH MODAL & TOMBOL VERIFIKASI
+   ========================================= */
 .auth-modal {
     position: fixed;
     top:0;left:0;width:100%;height:100%;
@@ -239,6 +243,40 @@ th { color: var(--emas); }
 .auth-card { background: #2c0a0a; padding: 40px; border-radius: 40px; width: 320px; text-align: center; }
 .auth-card input { width: 100%; margin: 20px 0; }
 
+/* Desain awal Tombol Verifikasi */
+#auth-submit {
+    background: var(--emas);
+    color: #2c0b0b;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 40px;
+    font-weight: bold;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    width: 100%;
+}
+
+#auth-submit:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 15px rgba(212, 175, 55, 0.5);
+}
+
+/* Warna saat Password BENAR */
+.btn-success {
+    background-color: #2ecc71 !important; /* Hijau */
+    color: white !important;
+    box-shadow: 0 0 15px rgba(46, 204, 113, 0.5) !important;
+}
+
+/* Warna saat Password SALAH */
+.btn-error {
+    background-color: #e74c3c !important; /* Merah */
+    color: white !important;
+    box-shadow: 0 0 15px rgba(231, 76, 60, 0.5) !important;
+}
+/* ========================================= */
+
 footer { text-align: center; margin-top: 50px; padding: 20px; border-top: 1px solid rgba(212,175,55,0.3); }
 
 @media (max-width: 700px) {
@@ -246,6 +284,7 @@ footer { text-align: center; margin-top: 50px; padding: 20px; border-top: 1px so
     .menu-card { width: 100%; }
     .status-pilihan { flex-direction: column; }
 }
+
 /* Dropdown siswa */
 .siswa-select {
     width: 100%;
@@ -267,6 +306,7 @@ footer { text-align: center; margin-top: 50px; padding: 20px; border-top: 1px so
     box-shadow: 0 0 12px rgba(212,175,55,0.5);
     outline: none;
 }
+
 /* Tombol lihat bukti */
 .btn-view-bukti {
     background: rgba(212, 175, 55, 0.2);
@@ -285,8 +325,8 @@ footer { text-align: center; margin-top: 50px; padding: 20px; border-top: 1px so
     max-height: 400px;
     object-fit: contain;
 }
-/* CSS Tambahan untuk Fitur Jadwal & Mood Kelas */
 
+/* CSS Tambahan untuk Fitur Jadwal & Mood Kelas */
 .mood-section {
     background: #2d2d2d; 
     padding: 25px;
