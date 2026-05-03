@@ -13,14 +13,19 @@
             <div class="live-clock" id="live-clock-index">--:--:--</div>
             <button class="dark-mode-toggle" id="darkmode-toggle-home">🌙 Dark</button>
         </div>
+
         <div class="logo-container animate-fade-up">
             <img src="https://placehold.co/100x100?text=XI-PHORIX" alt="Logo XIPHORIX" class="logo">
         </div>
+
         <div class="hero animate-fade-up">
             <h1 class="main-title">XIPHORIX ABSENSI</h1>
             <p class="tagline">Sistem Kehadiran Digital Premium</p>
         </div>
+
+        <!-- Bagian Menu Utama -->
         <div class="menu-grid animate-fade-up">
+            <!-- Card Absensi -->
             <a href="absensi.html" class="menu-card card-tilt">
                 <div class="card-icon">📋✨</div>
                 <div class="card-content">
@@ -28,6 +33,17 @@
                     <p>Catat kehadiran & dashboard pintar</p>
                 </div>
             </a>
+
+            <!-- Card Jadwal & Mood (Fitur Baru) -->
+            <a href="jadwal.html" class="menu-card card-tilt">
+                <div class="card-icon">📅📊</div>
+                <div class="card-content">
+                    <h2>JADWAL & MOOD</h2>
+                    <p>Cek jadwal pelajaran & vote mood kelas</p>
+                </div>
+            </a>
+
+            <!-- Card Momen Kelas -->
             <a href="https://drive.google.com/drive/folders/1xTywGmyP38bUghkFagULifvz014R9lhL?hl=id" target="_blank" class="menu-card card-tilt">
                 <div class="card-icon">📸🎞️</div>
                 <div class="card-content">
@@ -35,6 +51,8 @@
                     <p>Galeri kenangan & dokumentasi</p>
                 </div>
             </a>
+
+            <!-- Card Group WA -->
             <a href="https://chat.whatsapp.com/60iC7vPPdca57cgPKmbrHH" target="_blank" class="menu-card card-tilt">
                 <div class="card-icon">💬👥</div>
                 <div class="card-content">
@@ -43,10 +61,12 @@
                 </div>
             </a>
         </div>
+
         <footer class="home-footer">
             <p>&copy; <span id="current-year"></span> XIPHORIX • Sistem Kehadiran Premium</p>
         </footer>
     </div>
+
     <canvas id="particle-canvas" class="particle-bg"></canvas>
     <script src="script.js"></script>
 </body>

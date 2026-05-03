@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jadwal XI 2 | Mood Meter</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .schedule-table { width: 100%; border-collapse: collapse; background: white; color: #333; font-size: 12px; }
+        .schedule-table th, .schedule-table td { border: 1px solid #000; padding: 5px; text-align: center; }
+        .day-col { font-weight: bold; font-size: 20px; width: 50px; }
+        
+        /* Warna Mata Pelajaran Sesuai Gambar */
+        .bg-upacara { background: repeating-linear-gradient(45deg, #f1c40f, #f1c40f 10px, #3498db 10px, #3498db 20px); }
+        .bg-big { background: #00d2ff; }
+        .bg-mtk { background: #ccff99; }
+        .bg-bk { background: #00ffff; }
+        .bg-pai { background: #9999ff; }
+        .bg-bi { background: #99ffff; }
+        .bg-mulok { background: #ff6666; }
+        .bg-pjok { background: #9966ff; }
+        .bg-fis { background: #33ff99; }
+        .bg-bio { background: #ff9933; }
+        .bg-sej { background: #ccffcc; }
+        .bg-kim { background: #ffcc33; }
+        .bg-seni { background: #33cc33; }
+        .bg-ppkn { background: #99cc33; }
+        .bg-pkwu { background: #333399; color: white; }
+        .bg-mtk-wa { background: #999999; }
+
+        .mood-box { background: #4a0404; color: white; padding: 20px; border-radius: 20px; margin-top: 20px; text-align: center; }
+        .btn-vote { padding: 10px 20px; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; margin: 10px; }
+        .btn-vote:disabled { background: #666 !important; cursor: not-allowed; opacity: 0.5; }
+    </style>
+</head>
+<body>
+    <div class="home-container">
+        <h2 style="text-align: center; color: white;">JADWAL PELAJARAN XI 2</h2>
+        
+        <div style="overflow-x: auto;">
+            <table class="schedule-table">
+                <thead>
+                    <tr style="background: #eee;">
+                        <th>JAM</th>
+                        <th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th><th>8</th><th>9</th><th>10</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- SENIN -->
+                    <tr>
+                        <td class="day-col">Se</td>
+                        <td colspan="2" class="bg-upacara">UPACARA</td>
+                        <td colspan="2" class="bg-big">BIG WA</td>
+                        <td colspan="2" class="bg-mtk">MTK MIN</td>
+                        <td class="bg-bk">BK</td>
+                        <td class="bg-pai">PAI</td>
+                        <td colspan="2" class="bg-bi">BI</td>
+                    </tr>
+                    <!-- SELASA -->
+                    <tr>
+                        <td class="day-col">Se</td>
+                        <td colspan="2" class="bg-mulok">MULOK</td>
+                        <td colspan="2" class="bg-pjok">PJOK</td>
+                        <td colspan="2" class="bg-mtk">MTK MIN</td>
+                        <td colspan="2" class="bg-fis">FIS</td>
+                        <td colspan="2" class="bg-pai">PAI</td>
+                    </tr>
+                    <!-- RABU -->
+                    <tr>
+                        <td class="day-col">Ra</td>
+                        <td colspan="2" class="bg-bi">BI</td>
+                        <td colspan="2" class="bg-big">BIG WA</td>
+                        <td colspan="2" class="bg-bio">BIO</td>
+                        <td class="bg-pjok">PJOK</td>
+                        <td colspan="2" class="bg-sej">SEJ WA</td>
+                        <td class="bg-kim">KIM</td>
+                    </tr>
+                    <!-- KAMIS -->
+                    <tr>
+                        <td class="day-col">Ka</td>
+                        <td colspan="2" class="bg-kim">KIM</td>
+                        <td colspan="2" class="bg-fis">FIS</td>
+                        <td colspan="2" class="bg-mtk-wa">MTK WA</td>
+                        <td colspan="2" class="bg-seni">SENI</td>
+                        <td colspan="2" class="bg-ppkn">PPKN</td>
+                    </tr>
+                    <!-- JUMAT -->
+                    <tr>
+                        <td class="day-col">Ju</td>
+                        <td colspan="2" class="bg-mtk-wa">MTK WA</td>
+                        <td colspan="2" class="bg-bio">BIO</td>
+                        <td colspan="2" class="bg-pkwu">PKWU</td>
+                        <td></td><td></td><td></td><td></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="mood-box">
+            <h3>📊 Mood Kelas Hari Ini</h3>
+            <p id="vote-status">Pilih perasaanmu (1x sehari):</p>
+            <button id="btn-happy" class="btn-vote" style="background: #ffc107;" onclick="castVote('happy')">🤩 Suenang</button>
+            <button id="btn-stress" class="btn-vote" style="background: #f44336; color: white;" onclick="castVote('stress')">🤯 Suetress</button>
+            
+            <div class="progress-container"><div id="bar-happy" class="progress-bar" style="background: #ffc107; color: black;">0%</div></div>
+            <div class="progress-container"><div id="bar-stress" class="progress-bar" style="background: #f44336;">0%</div></div>
+            <p id="total-info">Total Suara: 0</p>
+        </div>
+
+        <center><a href="index.html" class="back-btn">⬅ Kembali</a></center>
+    </div>
+
+    <script>
+        let voteData = JSON.parse(localStorage.getItem('classVotes')) || { happy: 0, stress: 0 };
+        
+        function checkVoteStatus() {
+            const lastVoteDate = localStorage.getItem('lastVoteDate');
+            const today = new Date().toDateString();
+            
+            if (lastVoteDate === today) {
+                document.getElementById('btn-happy').disabled = true;
+                document.getElementById('btn-stress').disabled = true;
+                document.getElementById('vote-status').innerText = "Kamu sudah vote hari ini! ✨";
+            }
+            updateUI();
+        }
+
+        function castVote(type) {
+            voteData[type]++;
+            localStorage.setItem('classVotes', JSON.stringify(voteData));
+            localStorage.setItem('lastVoteDate', new Date().toDateString());
+            checkVoteStatus();
+        }
+
+        function updateUI() {
+            const total = voteData.happy + voteData.stress || 0;
+            const hPerc = total ? Math.round((voteData.happy / total) * 100) : 0;
+            const sPerc = total ? Math.round((voteData.stress / total) * 100) : 0;
+
+            document.getElementById('bar-happy').style.width = hPerc + '%';
+            document.getElementById('bar-happy').innerText = `Suenang ${hPerc}%`;
+            document.getElementById('bar-stress').style.width = sPerc + '%';
+            document.getElementById('bar-stress').innerText = `Suetress ${sPerc}%`;
+            document.getElementById('total-info').innerText = `Total Suara: ${total}`;
+        }
+
+        window.onload = checkVoteStatus;
+    </script>
+</body>
+</html>
