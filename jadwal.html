@@ -99,8 +99,8 @@
         <div class="mood-box">
             <h3>📊 Mood Kelas Hari Ini</h3>
             <p id="vote-status">Pilih perasaanmu (1x sehari):</p>
-            <button id="btn-happy" class="btn-vote" style="background: #ffc107;" onclick="castVote('happy')">🤩 Suenang</button>
-            <button id="btn-stress" class="btn-vote" style="background: #f44336; color: white;" onclick="castVote('stress')">🤯 Suetress</button>
+            <button id="btn-happy" class="btn-vote" style="background: #ffc107;">🤩 Suenang</button>
+            <button id="btn-stress" class="btn-vote" style="background: #f44336; color: white;">🤯 Suetress</button>
             
             <div class="progress-container"><div id="bar-happy" class="progress-bar" style="background: #ffc107; color: black;">0%</div></div>
             <div class="progress-container"><div id="bar-stress" class="progress-bar" style="background: #f44336;">0%</div></div>
@@ -110,32 +110,43 @@
         <center><a href="index.html" class="back-btn">⬅ Kembali</a></center>
     </div>
 
-    <script>
-        let voteData = JSON.parse(localStorage.getItem('classVotes')) || { happy: 0, stress: 0 };
+<script>
+        let moodData = {happy: 0, stress: 0};
+        let hasVotedToday = false;
         
-        function checkVoteStatus() {
-            const lastVoteDate = localStorage.getItem('lastVoteDate');
+        async function initMood() {
+            moodData = await loadMoodFromCloud();
             const today = new Date().toDateString();
-            
+            const lastVoteDate = localStorage.getItem('moodVoteDate');
             if (lastVoteDate === today) {
+                hasVotedToday = true;
+            }
+            updateUI();
+            // Auto refresh every 30s
+            setInterval(async () => {
+                moodData = await loadMoodFromCloud();
+                updateUI();
+            }, 30000);
+        }
+        
+        async function castVote(type) {
+            if (hasVotedToday) return;
+            
+            const success = await addMoodToCloud(type);
+            if (success) {
+                hasVotedToday = true;
+                localStorage.setItem('moodVoteDate', new Date().toDateString());
                 document.getElementById('btn-happy').disabled = true;
                 document.getElementById('btn-stress').disabled = true;
                 document.getElementById('vote-status').innerText = "Kamu sudah vote hari ini! ✨";
+                showToast('✅ Vote mood berhasil disimpan!', 2000);
             }
-            updateUI();
         }
-
-        function castVote(type) {
-            voteData[type]++;
-            localStorage.setItem('classVotes', JSON.stringify(voteData));
-            localStorage.setItem('lastVoteDate', new Date().toDateString());
-            checkVoteStatus();
-        }
-
+        
         function updateUI() {
-            const total = voteData.happy + voteData.stress || 0;
-            const hPerc = total ? Math.round((voteData.happy / total) * 100) : 0;
-            const sPerc = total ? Math.round((voteData.stress / total) * 100) : 0;
+            const total = moodData.happy + moodData.stress || 0;
+            const hPerc = total ? Math.round((moodData.happy / total) * 100) : 0;
+            const sPerc = total ? Math.round((moodData.stress / total) * 100) : 0;
 
             document.getElementById('bar-happy').style.width = hPerc + '%';
             document.getElementById('bar-happy').innerText = `Suenang ${hPerc}%`;
@@ -143,8 +154,11 @@
             document.getElementById('bar-stress').innerText = `Suetress ${sPerc}%`;
             document.getElementById('total-info').innerText = `Total Suara: ${total}`;
         }
-
-        window.onload = checkVoteStatus;
+        
+        // Init on load
+        window.addEventListener('load', initMood);
+        
+        // Button events (remove onclick, use addEventListener)
     </script>
 </body>
 </html>

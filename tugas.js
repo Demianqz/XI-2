@@ -4,25 +4,16 @@ const DAFTAR_MAPEL = [
     "FIS", "BIO", "SEJ WA", "KIM", "MTK WA", "SENI", "PPKN", "PKWU"
 ];
 
-// Key localStorage untuk tugas
-const TUGAS_KEY = 'xiphorix_tugas';
-
 let daftarTugas = [];
 
-// Load data
-function loadTugas() {
-    const stored = localStorage.getItem(TUGAS_KEY);
-    daftarTugas = stored ? JSON.parse(stored) : [];
+// Load data cloud (with local fallback)
+async function loadTugas() {
+    daftarTugas = await loadTugasFromCloud();
     renderTugas();
 }
 
-// Simpan
-function saveTugas() {
-    localStorage.setItem(TUGAS_KEY, JSON.stringify(daftarTugas));
-}
-
 // Tambah tugas
-function tambahTugas(mapel, deskripsi, tanggal) {
+async function tambahTugas(mapel, deskripsi, tanggal) {
     if (!mapel || !deskripsi || !tanggal) {
         showToast('⚠️ Semua field harus diisi!', 2000);
         return false;
@@ -34,20 +25,25 @@ function tambahTugas(mapel, deskripsi, tanggal) {
         tanggal: tanggal,
         createdAt: new Date().toISOString()
     };
-    daftarTugas.push(newTugas);
-    saveTugas();
-    renderTugas();
-    showToast('✅ Tugas berhasil ditambahkan!', 2000);
-    return true;
+    const success = await addTugasToCloud(newTugas);
+    if (success) {
+        daftarTugas.push(newTugas); // Local cache
+        renderTugas();
+        showToast('✅ Tugas berhasil disimpan ke cloud!', 2000);
+        return true;
+    }
+    return false;
 }
 
 // Hapus tugas
-function hapusTugas(id) {
+async function hapusTugas(id) {
     if(confirm('Hapus tugas ini?')) {
-        daftarTugas = daftarTugas.filter(t => t.id !== id);
-        saveTugas();
-        renderTugas();
-        showToast('🗑️ Tugas dihapus', 1500);
+        const success = await deleteTugasFromCloud(id);
+        if (success) {
+            daftarTugas = daftarTugas.filter(t => t.id !== id);
+            renderTugas();
+            showToast('🗑️ Tugas dihapus dari cloud!', 1500);
+        }
     }
 }
 
@@ -112,19 +108,30 @@ function populateMapelDropdown() {
 }
 
 // Inisialisasi halaman tugas
-function initTugasPage() {
+async function updateSyncStatus() {
+    document.getElementById('last-sync').textContent = new Date().toLocaleTimeString('id-ID');
+}
+
+async function refreshTugas() {
+    showToast('🔄 Mensinkronkan...', 1000);
+    await loadTugas();
+    updateSyncStatus();
+}
+
+async function initTugasPage() {
     populateMapelDropdown();
-    loadTugas();
+    await loadTugas(); // Cloud first
+    updateSyncStatus();
     
-    document.getElementById('btn-tambah-tugas').onclick = () => {
+    document.getElementById('btn-tambah-tugas').onclick = async () => {
         const mapel = document.getElementById('mapel-tugas').value;
         const deskripsi = document.getElementById('deskripsi-tugas').value.trim();
         const tanggal = document.getElementById('tanggal-tugas').value;
-        if (tambahTugas(mapel, deskripsi, tanggal)) {
-            document.getElementById('deskripsi-tugas').value = '';
-            document.getElementById('tanggal-tugas').value = '';
-            document.getElementById('mapel-tugas').value = '';
-        }
+        await tambahTugas(mapel, deskripsi, tanggal);
+        document.getElementById('deskripsi-tugas').value = '';
+        document.getElementById('tanggal-tugas').value = '';
+        document.getElementById('mapel-tugas').value = '';
+        updateSyncStatus();
     };
     
     document.getElementById('filter-mapel').onchange = (e) => {
@@ -136,12 +143,20 @@ function initTugasPage() {
         currentFilterMapel = 'all';
         renderTugas();
     };
+    
+    // Auto-sync every 30s
+    setInterval(async () => {
+        await loadTugas();
+        updateSyncStatus();
+    }, 30000);
+    
     // Clock
     setInterval(() => {
         const clock = document.getElementById('tugas-clock');
         if(clock) clock.innerText = new Date().toLocaleTimeString('id-ID');
     }, 1000);
 }
+
 
 // Eksekusi saat halaman tugas siap
 if(document.title.includes("Tugas Kelas")) {

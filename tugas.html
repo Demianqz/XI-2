@@ -113,6 +113,10 @@
                 </select>
                 <button id="reset-filter-tugas" class="btn-outline">Reset Filter</button>
             </div>
+            <div id="sync-status" style="font-size:0.9rem; opacity:0.8; margin-top:10px;">
+                Terakhir sync: <span id="last-sync">--</span> | 
+                <button onclick="refreshTugas()" class="btn-outline" style="font-size:0.8rem; padding:4px 8px;">🔄 Sync</button>
+            </div>
             <div class="table-wrapper">
                 <table id="tugas-table" class="task-table">
                     <thead>

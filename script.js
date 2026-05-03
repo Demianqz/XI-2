@@ -1,4 +1,5 @@
-// ==================== CONFIGURATION ====================
+in h// ==================== CONFIGURATION ====================
+const NEW_GAS_URL = 'https://script.google.com/macros/s/AKfycbzmfwPA2fZ3u5Z8FVSzRHKO0S_CE0DsLSzwOSJA3UxtUdMotGjxTx1KyFektI8FoDFUgA/exec';
 const scriptURL = "https://script.google.com/macros/s/AKfycbyarN6zSYcmIFtMLN2-M_4_DOgtlO-i45E36I21upbg32k8GLwoTuEc6i1VRx58drB63A/exec";
 
 // ==================== DAFTAR SISWA TETAP (36 SISWA) ====================
@@ -27,7 +28,7 @@ let currentFilterDate = new Date().toLocaleDateString('en-CA');
 
 async function loadDataFromCloud() {
     try {
-        const response = await fetch(scriptURL);
+        const response = await fetch(NEW_GAS_URL);
         const data = await response.json();
         absensiData = data;
         saveDataLocally();
@@ -38,12 +39,13 @@ async function loadDataFromCloud() {
     }
 }
 
+
 async function syncToSheets(nama, status, waktu) {
     try {
-        await fetch(scriptURL, {
+        await fetch(NEW_GAS_URL, {
             method: 'POST',
             mode: 'no-cors',
-            body: JSON.stringify({ "nama": nama, "status": status, "waktu": waktu }),
+            body: JSON.stringify({ action: 'addAbsen', nama, status, waktu }),
             headers: { 'Content-Type': 'application/json' }
         });
         return true;
@@ -52,6 +54,77 @@ async function syncToSheets(nama, status, waktu) {
         return false;
     }
 }
+
+// ==================== TUGAS FUNCTIONS ====================
+async function loadTugasFromCloud() {
+    try {
+        const response = await fetch(`${NEW_GAS_URL}?action=getTugas`);
+        const data = await response.json();
+        return Array.isArray(data) ? data : [];
+    } catch (e) {
+        console.warn('Gagal load tugas cloud:', e);
+        return [];
+    }
+}
+
+async function addTugasToCloud(tugasData) {
+    try {
+        await fetch(NEW_GAS_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            body: JSON.stringify({ action: 'addTugas', ...tugasData }),
+            headers: { 'Content-Type': 'application/json' }
+        });
+        return true;
+    } catch (e) {
+        console.error('Gagal tambah tugas:', e);
+        return false;
+    }
+}
+
+async function deleteTugasFromCloud(id) {
+    try {
+        await fetch(NEW_GAS_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            body: JSON.stringify({ action: 'deleteTugas', id }),
+            headers: { 'Content-Type': 'application/json' }
+        });
+        return true;
+    } catch (e) {
+        console.error('Gagal hapus tugas:', e);
+        return false;
+    }
+}
+
+// ==================== MOOD FUNCTIONS ====================
+async function loadMoodFromCloud() {
+    try {
+        const response = await fetch(`${NEW_GAS_URL}?action=getMood`);
+        return await response.json();
+    } catch (e) {
+        console.warn('Gagal load mood:', e);
+        return {happy: 0, stress: 0};
+    }
+}
+
+async function addMoodToCloud(type) {
+    try {
+        const happy = type === 'happy' ? 1 : 0;
+        const stress = type === 'stress' ? 1 : 0;
+        await fetch(NEW_GAS_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            body: JSON.stringify({ action: 'addMood', happy, stress, total: happy + stress }),
+            headers: { 'Content-Type': 'application/json' }
+        });
+        return true;
+    } catch (e) {
+        console.error('Gagal vote mood:', e);
+        return false;
+    }
+}
+
 
 function saveDataLocally() { localStorage.setItem(STORAGE_KEY, JSON.stringify(absensiData)); }
 function loadDataLocally() {
@@ -333,7 +406,7 @@ function initAbsensiPage() {
                 // BENAR: HIJAU
                 btn.classList.add('btn-success');
                 btn.innerText = "BERHASIL!";
-                setTimeout(() => {
+    dar             setTimeout(() => {
                     sessionStorage.setItem('xiphorix_auth', 'true');
                     authModal.style.display = 'none';
                     absMain.style.display = 'block';
