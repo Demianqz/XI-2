@@ -1,6 +1,6 @@
 // ==================== CONFIGURATION ====================
-// Ganti dengan URL Web App Google Apps Script kamu
-const scriptURL = "https://script.google.com/macros/s/AKfycbz4_9iBnW87YD20wMhHvQGqnj3acnEZfriCUqRVYcHyV80FqH5vI0nPJOxdfgiqqwXKQA/exec";
+// URL Web App dari Google Apps Script
+const scriptURL = "https://script.google.com/macros/s/AKfycbyarN6zSYcmIFtMLN2-M_4_DOgtlO-i45E36I21upbg32k8GLwoTuEc6i1VRx58drB63A/exec";
 
 // ==================== DAFTAR SISWA TETAP (36 SISWA) ====================
 const DAFTAR_SISWA = [
@@ -19,17 +19,34 @@ const DAFTAR_SISWA = [
 ];
 const TOTAL_SISWA_TETAP = DAFTAR_SISWA.length;
 
-// ==================== GLOBAL ====================
+// ==================== GLOBAL SETTINGS ====================
 let absensiData = [];
 const STORAGE_KEY = 'xiphorix_absensi';
+let currentFilterDate = new Date().toLocaleDateString('en-CA');
 
-// FUNGSI BARU: Mengirim data ke Google Sheets Cloud
-async function syncToSheets(nama, status) {
+// ==================== CORE FUNCTIONS (SINKRONISASI) ====================
+
+// AMBIL DATA DARI CLOUD (Agar semua HP sinkron)
+async function loadDataFromCloud() {
+    try {
+        const response = await fetch(scriptURL);
+        const data = await response.json();
+        absensiData = data;
+        saveDataLocally(); // Backup ke lokal
+        refreshAllUI();
+    } catch (e) {
+        console.warn("Gagal ambil data cloud, menggunakan backup lokal.");
+        loadDataLocally();
+    }
+}
+
+// KIRIM DATA KE CLOUD
+async function syncToSheets(nama, status, waktu) {
     try {
         await fetch(scriptURL, {
             method: 'POST',
-            mode: 'no-cors', // Penting untuk menghindari blokir CORS di browser
-            body: JSON.stringify({ "nama": nama, "status": status }),
+            mode: 'no-cors', // Menghindari masalah CORS
+            body: JSON.stringify({ "nama": nama, "status": status, "waktu": waktu }),
             headers: { 'Content-Type': 'application/json' }
         });
         return true;
@@ -39,11 +56,12 @@ async function syncToSheets(nama, status) {
     }
 }
 
-function saveData() { localStorage.setItem(STORAGE_KEY, JSON.stringify(absensiData)); }
-function loadData() {
+function saveDataLocally() { localStorage.setItem(STORAGE_KEY, JSON.stringify(absensiData)); }
+function loadDataLocally() {
     const stored = localStorage.getItem(STORAGE_KEY);
     absensiData = stored ? JSON.parse(stored) : [];
 }
+
 function getTodayISO() { return new Date().toLocaleDateString('en-CA'); }
 function getTanggalIndonesia() {
     return new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
@@ -52,16 +70,17 @@ function getTanggalIndonesia() {
 function cekAbsenHariIni(nama, tanggal) {
     return absensiData.some(item => item.tanggal === tanggal && item.nama.toLowerCase().trim() === nama.toLowerCase().trim());
 }
+
 function isValidSiswa(nama) {
     return DAFTAR_SISWA.some(s => s.toLowerCase() === nama.toLowerCase().trim());
 }
 
-// Upload file dan konversi ke base64 (FITUR TETAP)
+// ==================== FITUR UPLOAD BUKTI ====================
 function uploadBukti() {
     return new Promise((resolve, reject) => {
         const input = document.createElement('input');
         input.type = 'file';
-        input.accept = 'image/jpeg, image/png, image/jpg';
+        input.accept = 'image/*';
         input.onchange = (e) => {
             const file = e.target.files[0];
             if (!file) { resolve(null); return; }
@@ -79,9 +98,10 @@ function uploadBukti() {
     });
 }
 
-// Tambah absen dengan sinkronisasi Database Cloud
+// ==================== LOGIKA ABSENSI ====================
 async function tambahAbsen(nama, statusKehadiran) {
     const today = getTodayISO();
+    
     if (!isValidSiswa(nama)) {
         showToast(`❌ "${nama}" tidak terdaftar!`, 2500);
         return false;
@@ -101,11 +121,13 @@ async function tambahAbsen(nama, statusKehadiran) {
         }
     }
 
-    // PROSES CLOUD SYNC (Nalar lama tidak apa-apa sesuai request)
-    showToast('⏳ Menghubungkan ke Database Pusat...', 3000);
-    await syncToSheets(nama, statusKehadiran); 
-
     const waktuSekarang = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+    showToast('⏳ Menghubungkan ke Database Pusat...', 3000);
+    
+    // Kirim ke Cloud
+    await syncToSheets(nama, statusKehadiran, waktuSekarang);
+
+    // Simpan ke List Lokal
     const newEntry = {
         nama: nama.trim(),
         tanggal: today,
@@ -116,27 +138,29 @@ async function tambahAbsen(nama, statusKehadiran) {
     };
 
     absensiData.push(newEntry);
-    saveData();
+    saveDataLocally();
     showToast(`✅ ${nama} BERHASIL DISIMPAN`, 2500);
     return true;
 }
 
-// ==================== RENDERING LOGIC (TIDAK BERUBAH) ====================
-let currentFilterDate = getTodayISO();
-
+// ==================== UI RENDERING ====================
 function renderLog(filterNama = '') {
     const filteredByDate = absensiData.filter(item => item.tanggal === currentFilterDate);
     let finalData = filteredByDate;
+    
     if (filterNama.trim() !== '') {
         finalData = finalData.filter(item => item.nama.toLowerCase().includes(filterNama.toLowerCase()));
     }
+    
     const tbody = document.getElementById('log-tbody');
     if (!tbody) return;
     tbody.innerHTML = '';
+    
     if (finalData.length === 0) {
         tbody.innerHTML = '<tr><td colspan="5">Tidak ada data untuk tanggal ini</td></tr>';
         return;
     }
+
     finalData.forEach((item, idx) => {
         const buktiHtml = item.bukti ? `<button class="btn-view-bukti" data-bukti="${item.bukti}">📎 Lihat</button>` : '-';
         const row = `<tr>
@@ -150,12 +174,10 @@ function renderLog(filterNama = '') {
     });
     
     document.querySelectorAll('.btn-view-bukti').forEach(btn => {
-        btn.addEventListener('click', (e) => {
+        btn.addEventListener('click', () => {
             const buktiData = btn.getAttribute('data-bukti');
-            if (buktiData) {
-                document.getElementById('preview-image').src = buktiData;
-                document.getElementById('preview-modal').style.display = 'flex';
-            }
+            document.getElementById('preview-image').src = buktiData;
+            document.getElementById('preview-modal').style.display = 'flex';
         });
     });
 }
@@ -165,9 +187,11 @@ function renderStatsForDate() {
     const hadirCount = dataToday.filter(item => item.status === "Hadir").length;
     const uniqueSiswa = new Set(dataToday.map(i => i.nama.toLowerCase())).size;
     const persen = Math.round((uniqueSiswa / TOTAL_SISWA_TETAP) * 100);
+    
     if(document.getElementById('stat-hadir')) document.getElementById('stat-hadir').innerText = hadirCount;
     if(document.getElementById('stat-unik')) document.getElementById('stat-unik').innerHTML = `${uniqueSiswa} / ${TOTAL_SISWA_TETAP}`;
     if(document.getElementById('stat-persen')) document.getElementById('stat-persen').innerText = `${persen}%`;
+    
     const filterInfo = document.getElementById('filter-info');
     if (filterInfo) filterInfo.innerText = `Menampilkan data untuk: ${formatTanggalIndo(currentFilterDate)}`;
 }
@@ -176,48 +200,36 @@ function renderRanking7Hari() {
     const today = new Date();
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(today.getDate() - 7);
+    
     const data7Hari = absensiData.filter(item => {
         const itemDate = new Date(item.tanggal);
         return itemDate >= sevenDaysAgo && itemDate <= today && item.status === "Hadir";
     });
+
     const countMap = new Map();
     data7Hari.forEach(item => {
         const namaLow = item.nama.toLowerCase();
         countMap.set(namaLow, (countMap.get(namaLow) || 0) + 1);
     });
+
     const sorted = Array.from(countMap.entries()).sort((a,b) => b[1] - a[1]).slice(0,5);
     const rankDiv = document.getElementById('ranking-7hari');
     if (!rankDiv) return;
+
     if (sorted.length === 0) {
-        rankDiv.innerHTML = '<div class="empty-rank">Belum ada data kehadiran (Hadir) dalam 7 hari terakhir</div>';
+        rankDiv.innerHTML = '<div class="empty-rank">Belum ada data kehadiran 7 hari terakhir</div>';
         return;
     }
+
     const medals = ['🥇', '🥈', '🥉', '📌', '📌'];
     rankDiv.innerHTML = '';
     sorted.forEach(([nama, count], idx) => {
         const originalNama = DAFTAR_SISWA.find(s => s.toLowerCase() === nama) || nama;
-        rankDiv.innerHTML += `<div class="rank-item">${medals[idx]} <strong>${escapeHtml(originalNama)}</strong> - ${count} x Hadir</div>`;
+        rankDiv.innerHTML += `<div class="rank-item">${medals[idx]} <strong>${originalNama}</strong> - ${count} x Hadir</div>`;
     });
 }
 
 // ==================== DATA MANAGEMENT ====================
-function resetDataHariIni() {
-    if (confirm('Hapus data HARI INI saja?')) {
-        const today = getTodayISO();
-        absensiData = absensiData.filter(item => item.tanggal !== today);
-        saveData();
-        refreshAllUI();
-        showToast('Data hari ini direset', 1500);
-    }
-}
-function resetSemuaData() {
-    if (confirm('HAPUS SEMUA DATA ABSENSI? (permanen)')) {
-        absensiData = [];
-        saveData();
-        refreshAllUI();
-        showToast('Semua data telah dihapus', 1500);
-    }
-}
 function exportToJSON() {
     const dataStr = JSON.stringify(absensiData, null, 2);
     const blob = new Blob([dataStr], {type: 'application/json'});
@@ -226,11 +238,11 @@ function exportToJSON() {
     a.href = url;
     a.download = `absensi_xiphorix_${getTodayISO()}.json`;
     a.click();
-    URL.revokeObjectURL(url);
     showToast('Export JSON berhasil', 1500);
 }
 
 function formatTanggalIndo(tglISO) {
+    if(!tglISO) return "-";
     const [y,m,d] = tglISO.split('-');
     return `${d}/${m}/${y}`;
 }
@@ -244,19 +256,24 @@ function refreshAllUI() {
 
 function showToast(msg, duration=2000) {
     const toast = document.getElementById('toast-message');
-    if(toast) { toast.innerText = msg; toast.style.display = 'block'; setTimeout(() => toast.style.display = 'none', duration); }
+    if(toast) { 
+        toast.innerText = msg; 
+        toast.style.display = 'block'; 
+        setTimeout(() => toast.style.display = 'none', duration); 
+    }
 }
+
 function escapeHtml(str) {
     return str.replace(/[&<>]/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[m]));
 }
 
-// ==================== CLOCK & UI INITIALIZATION ====================
-let clockInterval;
-function updateAllClocks() {
-    const nowTime = new Date().toLocaleTimeString('id-ID');
-    document.querySelectorAll('.live-clock').forEach(el => el.innerText = nowTime);
+// ==================== UI INITIALIZATION ====================
+function startClock() {
+    setInterval(() => {
+        const nowTime = new Date().toLocaleTimeString('id-ID');
+        document.querySelectorAll('.live-clock').forEach(el => el.innerText = nowTime);
+    }, 1000);
 }
-function startClock() { if(clockInterval) clearInterval(clockInterval); updateAllClocks(); clockInterval = setInterval(updateAllClocks, 1000); }
 
 function initDarkMode() {
     const isDark = localStorage.getItem('darkMode') === 'true';
@@ -277,7 +294,16 @@ function initParticles() {
     canvas.width = width; canvas.height = height;
     let particles = [];
     for(let i=0;i<70;i++) particles.push({ x: Math.random()*width, y: Math.random()*height, radius: Math.random()*2+1, alpha: Math.random()*0.5 });
-    function draw() { if(!ctx) return; ctx.clearRect(0,0,width,height); particles.forEach(p => { ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2); ctx.fillStyle = `rgba(212, 175, 55, ${p.alpha})`; ctx.fill(); }); requestAnimationFrame(draw); }
+    function draw() {
+        ctx.clearRect(0,0,width,height);
+        particles.forEach(p => {
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2);
+            ctx.fillStyle = `rgba(212, 175, 55, ${p.alpha})`;
+            ctx.fill();
+        });
+        requestAnimationFrame(draw);
+    }
     draw();
 }
 
@@ -298,6 +324,7 @@ function initAbsensiPage() {
     const authModal = document.getElementById('auth-modal');
     const absMain = document.getElementById('absensi-main');
     if(!authModal) return;
+    
     const isAuth = sessionStorage.getItem('xiphorix_auth') === 'true';
     if(!isAuth) {
         authModal.style.display = 'flex';
@@ -317,26 +344,20 @@ function initAbsensiPage() {
 }
 
 async function loadAbsensiModule() {
-    loadData();
+    loadDataFromCloud(); // Tarik data cloud saat masuk
     populateSiswaDropdown();
     document.getElementById('full-date-indo').innerText = getTanggalIndonesia();
     document.getElementById('total-siswa-tetap').innerText = TOTAL_SISWA_TETAP;
+    
     currentFilterDate = getTodayISO();
     document.getElementById('filter-tanggal').value = currentFilterDate;
     refreshAllUI();
 
     const handleAbsen = async (status) => {
         const select = document.getElementById('pilih-siswa');
-        const nama = select.value;
-        if (!nama) {
-            showToast('Silakan pilih nama siswa terlebih dahulu!', 1500);
-            return;
-        }
-        const success = await tambahAbsen(nama, status);
-        if (success) {
-            select.value = "";
-            refreshAllUI();
-        }
+        if (!select.value) { showToast('Pilih nama dulu!', 1500); return; }
+        const success = await tambahAbsen(select.value, status);
+        if (success) { select.value = ""; refreshAllUI(); }
     };
 
     document.getElementById('status-hadir').onclick = () => handleAbsen('Hadir');
@@ -344,8 +365,7 @@ async function loadAbsensiModule() {
     document.getElementById('status-alfa').onclick = () => handleAbsen('Alfa');
 
     document.getElementById('apply-filter').onclick = () => {
-        currentFilterDate = document.getElementById('filter-tanggal').value;
-        if(!currentFilterDate) currentFilterDate = getTodayISO();
+        currentFilterDate = document.getElementById('filter-tanggal').value || getTodayISO();
         refreshAllUI();
     };
     document.getElementById('reset-filter').onclick = () => {
@@ -353,25 +373,22 @@ async function loadAbsensiModule() {
         document.getElementById('filter-tanggal').value = currentFilterDate;
         refreshAllUI();
     };
-    document.getElementById('search-nama').addEventListener('input', (e) => renderLog(e.target.value));
-    document.getElementById('reset-hari').onclick = resetDataHariIni;
-    document.getElementById('reset-semua').onclick = resetSemuaData;
+    
+    document.getElementById('search-nama').oninput = (e) => renderLog(e.target.value);
     document.getElementById('export-json').onclick = exportToJSON;
     document.getElementById('close-preview').onclick = () => document.getElementById('preview-modal').style.display = 'none';
     
-    // Auto Refresh untuk sinkronisasi tampilan data masuk
-    setInterval(() => { if(document.getElementById('absensi-main')?.style.display === 'block') refreshAllUI(); }, 5000);
-}
-
-function initHomePage() {
-    const yearElem = document.getElementById('current-year');
-    if(yearElem) yearElem.innerText = new Date().getFullYear();
+    // Auto Sync dari Cloud setiap 10 detik
+    setInterval(loadDataFromCloud, 10000);
 }
 
 window.addEventListener('load', () => {
     startClock();
     initDarkMode();
     initParticles();
-    if(document.querySelector('.home-container')) initHomePage();
+    if(document.querySelector('.home-container')) {
+        const yearElem = document.getElementById('current-year');
+        if(yearElem) yearElem.innerText = new Date().getFullYear();
+    }
     if(document.getElementById('auth-modal')) initAbsensiPage();
 });
