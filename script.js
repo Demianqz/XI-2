@@ -1,7 +1,6 @@
-// ==================== XIPHORIX - 2 DETIK POLLING REAL-TIME ====================
-// GAS URL - update sesuai deploy Anda
-const scriptURL = "https://script.google.com/macros/s/AKfycbwMdLSWVYZDWLyUgjiCgPAsoofvKn5WbTe-Gw-_XDh32NE5VO4csUzwZ0THNziA7tD-yg/exec";
+// ==================== XIPHORIX BASIC LOCALSTORAGE - WEB AWAL ====================
 
+// Daftar siswa (tetap)
 const DAFTAR_SISWA = [
     "ACHMAD ANNAUFAEL NASRUL HUDA", "AHMAD BINTANG KURNIAWAN", "AHMAD SULTAN FEBRI SUDARSONO",
     "AKBAR GALIH PRAMUDYA", "ALFHANEO LINGGA SEIPUTRA", "ALMAS SHOFI MUGNI",
@@ -16,30 +15,23 @@ const DAFTAR_SISWA = [
     "RAEKA HANDITA SYAHBANA PUTERI", "RESTU DEWI FITRIANI", "RYANTI DWI NAYLA MAHARANI WIDYA",
     "SHAFIRA RAMADHANI", "VERRY BINTANG SURYAWAN", "ZAZA MEISYA PUTRI"
 ];
-const TOTAL_SISWA_TETAP = DAFTAR_SISWA.length;
-const STORAGE_KEY = 'xiphorix_absensi';
+const STORAGE_KEY = 'xiphorix_absensi_simple';
+const MOOD_KEY = 'xiphorix_mood';
+const TOTAL_SISWA = DAFTAR_SISWA.length;
 
-let absensiData = [];
-let currentFilterDate = new Date().toLocaleDateString('en-CA');
-let lastDataString = '';
-let pollingInterval;
-
-// ========== UTILITIES ==========
+// Utils
 function getTodayISO() { return new Date().toLocaleDateString('en-CA'); }
 function getTanggalIndonesia() {
     return new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 }
-function escapeHtml(str) {
-    if (!str) return '';
-    return str.replace(/[&<>"]/g, m => ({ '&': '&amp;', '<': '<', '>': '>', '"': '"' }[m]));
-}
+function escapeHtml(str) { return str ? str.replace(/[&<>"]/g, m => ({ '&': '&amp;', '<': '<', '>': '>', '"': '"' }[m])) : ''; }
 function showToast(msg, duration = 2000) {
     const toast = document.getElementById('toast-message');
     if (toast) {
         toast.textContent = msg;
         toast.style.display = 'block';
         setTimeout(() => toast.style.display = 'none', duration);
-    } else console.log(msg);
+    }
 }
 function formatTanggalIndo(tglISO) {
     if (!tglISO) return '-';
@@ -47,157 +39,62 @@ function formatTanggalIndo(tglISO) {
     return `${d}/${m}/${y}`;
 }
 
-// ========== LOCALSTORAGE ==========
-function loadLocalAbsensi() {
+// ========== ABSENSI LOCAL ONLY ==========
+let absensiData = [];
+function loadAbsensi() {
     const stored = localStorage.getItem(STORAGE_KEY);
     absensiData = stored ? JSON.parse(stored) : [];
 }
-function saveLocalAbsensi() {
+function saveAbsensi() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(absensiData));
 }
-
-// ========== CLOUD POLLING (2 DETIK) ==========
-async function syncFromCloud() {
-    try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
-        const response = await fetch(`${scriptURL}?action=getAbsensi&_=${Date.now()}`, { signal: controller.signal });
-        clearTimeout(timeoutId);
-        const data = await response.json();
-        const dataString = JSON.stringify(data);
-        if (dataString !== lastDataString && !data.error) {
-            absensiData = data;
-            saveLocalAbsensi();
-            lastDataString = dataString;
-            refreshAllUI();
-            console.log('📡 Data cloud updated');
-        }
-    } catch (err) {
-        console.warn('Sync gagal:', err);
-    }
-}
-
-// ========== ABSEN LOGIC ==========
-async function tambahAbsen(nama, status) {
+function tambahAbsen(nama, status) {
     const today = getTodayISO();
-    if (!DAFTAR_SISWA.some(s => s.toLowerCase() === nama.toLowerCase().trim())) {
-        showToast('❌ Nama tidak terdaftar');
+    const existing = absensiData.find(item => item.nama.toLowerCase() === nama.toLowerCase().trim() && item.tanggal === today);
+    if (existing) {
+        showToast(`${nama} sudah absen hari ini!`);
         return false;
     }
-    if (absensiData.some(item => item.tanggal === today && item.nama.toLowerCase().trim() === nama.toLowerCase().trim())) {
-        showToast(`${nama} sudah absen hari ini`);
-        return false;
-    }
-
     const waktu = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-    const newEntry = { nama: nama.trim(), tanggal: today, waktu, status, timestamp: Date.now() };
-
-    // Tambah lokal dulu (instan UI update)
+    const newEntry = { nama: nama.trim(), status, waktu, tanggal: today, timestamp: Date.now() };
     absensiData.push(newEntry);
-    saveLocalAbsensi();
-    refreshAllUI();
-
-    // Kirim cloud
-    try {
-        await fetch(scriptURL, {
-            method: 'POST',
-            mode: 'no-cors',
-            body: JSON.stringify({ action: 'addAbsen', ...newEntry })
-        });
-        showToast(`✅ ${nama} - ${status} tersimpan`);
-        // Force sync setelah 500ms (pastikan data cloud tersedia)
-        setTimeout(syncFromCloud, 500);
-    } catch (e) {
-        showToast('Lokal OK, cloud gagal');
-    }
+    saveAbsensi();
+    renderAbsensiLog();
+    showToast(`✅ ${status}: ${nama}`);
     return true;
 }
-
-// ========== RENDER ==========
-function renderLog(filterNama = '') {
+function renderAbsensiLog() {
     const tbody = document.getElementById('log-tbody');
     if (!tbody) return;
-    let filtered = absensiData.filter(item => item.tanggal === currentFilterDate);
-    if (filterNama.trim()) filtered = filtered.filter(item => item.nama.toLowerCase().includes(filterNama.toLowerCase()));
-    tbody.innerHTML = filtered.length === 0 ? 
-        '<tr><td colspan="5" style="text-align:center">Tidak ada data</td></tr>' : 
-        filtered.map((item, idx) => `
-            <tr>
-                <td>${idx+1}</td>
-                <td>${escapeHtml(item.nama)}</td>
-                <td>${item.waktu}</td>
-                <td>${item.status}</td>
-                <td>${item.bukti ? `<a href="${escapeHtml(item.bukti)}" target="_blank">📎</a>` : '-'}</td>
-            </tr>
-        `).join('');
+    const todayData = absensiData.filter(item => item.tanggal === getTodayISO());
+    tbody.innerHTML = todayData.length ? todayData.map((item, idx) => `
+        <tr>
+            <td>${idx+1}</td>
+            <td>${escapeHtml(item.nama)}</td>
+            <td>${item.waktu}</td>
+            <td>${item.status}</td>
+            <td>-</td>
+        </tr>
+    `).join('') : '<tr><td colspan="5" style="text-align:center;padding:20px">📭 Belum ada absensi hari ini</td></tr>';
 }
 
-function renderStatsForDate() {
-    const dataToday = absensiData.filter(item => item.tanggal === currentFilterDate);
-    const hadirCount = dataToday.filter(item => item.status === "Hadir").length;
-    const uniqueSiswa = new Set(dataToday.map(i => i.nama.toLowerCase())).size;
-    const persen = Math.round((uniqueSiswa / TOTAL_SISWA_TETAP) * 100);
-    const hadirEl = document.getElementById('stat-hadir');
-    const unikEl = document.getElementById('stat-unik');
-    const persenEl = document.getElementById('stat-persen');
-    const filterEl = document.getElementById('filter-info');
-    if (hadirEl) hadirEl.textContent = hadirCount;
-    if (unikEl) unikEl.innerHTML = `${uniqueSiswa} / ${TOTAL_SISWA_TETAP}`;
-    if (persenEl) persenEl.textContent = `${persen}%`;
-    if (filterEl) filterEl.textContent = `Tanggal: ${formatTanggalIndo(currentFilterDate)}`;
-}
+// ========== MOOD VOTING (JADWAL) ==========
+window.loadMoodFromLocal = function() { 
+    return JSON.parse(localStorage.getItem(MOOD_KEY) || '{"happy":0,"stress":0,"voted":false}'); 
+};
+window.saveMoodToLocal = function(mood) { 
+    localStorage.setItem(MOOD_KEY, JSON.stringify(mood)); 
+};
 
-function renderRanking7Hari() {
-    const today = new Date();
-    const weekAgo = new Date(today); weekAgo.setDate(today.getDate() - 7);
-    const weekData = absensiData.filter(item => {
-        const d = new Date(item.tanggal);
-        return d >= weekAgo && item.status === 'Hadir';
-    });
-    const counts = {};
-    weekData.forEach(item => {
-        const n = item.nama.toLowerCase();
-        counts[n] = (counts[n] || 0) + 1;
-    });
-    const top5 = Object.entries(counts)
-        .sort(([,a], [,b]) => b - a)
-        .slice(0,5)
-        .map(([n,c],i) => ({n: DAFTAR_SISWA.find(s => s.toLowerCase() === n) || n, c, medal: ['🥇','🥈','🥉','📌','📌'][i]}));
-    const rankEl = document.getElementById('ranking-7hari');
-    if (rankEl) rankEl.innerHTML = top5.length ? top5.map(r => `<div>${r.medal} ${escapeHtml(r.n)} - ${r.c}x</div>`).join('') : 'No data';
-}
-
-function refreshAllUI() {
-    renderLog(document.getElementById('search-nama')?.value || '');
-    renderStatsForDate();
-    renderRanking7Hari();
-}
-
-// ========== POLLING 2 DETIK ==========
-function startPolling() {
-    if (pollingInterval) clearInterval(pollingInterval);
-    pollingInterval = setInterval(() => {
-        if (!document.hidden && document.visibilityState === 'visible') {
-            syncFromCloud();
-        }
-    }, 2000); // 2 detik polling - near real-time
-}
-
-// Stop polling when page hidden
-document.addEventListener('visibilitychange', () => {
-    if (document.hidden) {
-        if (pollingInterval) clearInterval(pollingInterval);
-    } else {
-        startPolling();
-    }
-});
-
-// ========== INIT ==========
+// ========== COMMON UI ==========
 function initCommonUI() {
+    // Clock
     setInterval(() => {
         const time = new Date().toLocaleTimeString('id-ID');
         document.querySelectorAll('.live-clock').forEach(el => el.textContent = time);
     }, 1000);
+    
+    // Dark mode
     if (localStorage.getItem('darkMode') === 'true') document.body.classList.add('dark-mode');
     document.querySelectorAll('.dark-mode-toggle').forEach(btn => {
         btn.onclick = () => {
@@ -205,104 +102,45 @@ function initCommonUI() {
             localStorage.setItem('darkMode', document.body.classList.contains('dark-mode'));
         };
     });
+    
+    // Year footer
+    const yearEl = document.getElementById('current-year');
+    if (yearEl) yearEl.textContent = new Date().getFullYear();
 }
 
-function populateSiswaDropdown() {
-    const select = document.getElementById('pilih-siswa');
-    if (select) {
-        select.innerHTML = '<option value="">-- Pilih Siswa --</option>' + 
-            DAFTAR_SISWA.map(n => `<option value="${n}">${n}</option>`).join('');
-    }
-}
-
+// ========== ABSENSI PAGE INIT ==========
 function initAbsensiPage() {
-    const authModal = document.getElementById('auth-modal');
-    const main = document.getElementById('absensi-main');
-    const isAuth = sessionStorage.getItem('xiphorix_auth') === 'true';
-    if (isAuth) {
-        authModal.style.display = 'none';
-        main.style.display = 'block';
-        loadAbsensiModule();
-    } else {
-        authModal.style.display = 'flex';
-        document.getElementById('auth-submit').onclick = () => {
-            const code = document.getElementById('auth-code').value;
-            if (code === 'XIPHORIX2026' || code === '12345') {
-                sessionStorage.setItem('xiphorix_auth', 'true');
-                authModal.style.display = 'none';
-                main.style.display = 'block';
-                loadAbsensiModule();
-            } else showToast('Kode salah!');
-        };
-    }
-}
-
-async function loadAbsensiModule() {
-    loadLocalAbsensi();
-    populateSiswaDropdown();
     document.getElementById('full-date-indo').textContent = getTanggalIndonesia();
-    document.getElementById('total-siswa-tetap').textContent = TOTAL_SISWA_TETAP;
-    currentFilterDate = getTodayISO();
-    document.getElementById('filter-tanggal').value = currentFilterDate;
-    await syncFromCloud();
-    refreshAllUI();
-    startPolling();
-
-    document.getElementById('status-hadir').onclick = () => handleAbsen('Hadir');
-    document.getElementById('status-izin').onclick = () => handleAbsen('Izin/Sakit');
-    document.getElementById('status-alfa').onclick = () => handleAbsen('Alfa');
-    document.getElementById('apply-filter').onclick = () => {
-        currentFilterDate = document.getElementById('filter-tanggal').value || getTodayISO();
-        refreshAllUI();
-    };
-    document.getElementById('reset-filter').onclick = () => {
-        currentFilterDate = getTodayISO();
-        document.getElementById('filter-tanggal').value = currentFilterDate;
-        refreshAllUI();
-    };
-    document.getElementById('search-nama').oninput = e => renderLog(e.target.value);
-    document.getElementById('export-json').onclick = () => {
-        const blob = new Blob([JSON.stringify(absensiData, null, 2)], {type: 'application/json'});
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = `absensi_${getTodayISO()}.json`;
-        a.click();
-    };
-    document.getElementById('reset-hari').onclick = () => {
-        if (confirm('Reset hari ini?')) {
-            const today = getTodayISO();
-            absensiData = absensiData.filter(item => item.tanggal !== today);
-            saveLocalAbsensi();
-            refreshAllUI();
-        }
-    };
-    document.getElementById('reset-semua').onclick = () => {
-        if (confirm('Reset semua?')) {
-            absensiData = [];
-            saveLocalAbsensi();
-            refreshAllUI();
-        }
-    };
-    document.getElementById('close-preview').onclick = () => document.getElementById('preview-modal').style.display = 'none';
-}
-
-function handleAbsen(status) {
+    
+    // Siswa dropdown
     const select = document.getElementById('pilih-siswa');
-    if (!select.value) {
-        showToast('Pilih siswa dulu!');
-        return;
-    }
-    tambahAbsen(select.value, status).then(() => select.value = '');
+    select.innerHTML = '<option value="">-- Pilih Nama Siswa --</option>' + 
+        DAFTAR_SISWA.map(n => `<option value="${n}">${n}</option>`).join('');
+    
+    loadAbsensi();
+    renderAbsensiLog();
+    
+    // Status buttons
+    document.getElementById('status-hadir').onclick = () => {
+        const nama = document.getElementById('pilih-siswa').value;
+        if (nama) tambahAbsen(nama, 'Hadir');
+    };
+    document.getElementById('status-izin').onclick = () => {
+        const nama = document.getElementById('pilih-siswa').value;
+        if (nama) tambahAbsen(nama, 'Izin');
+    };
+    document.getElementById('status-alfa').onclick = () => {
+        const nama = document.getElementById('pilih-siswa').value;
+        if (nama) tambahAbsen(nama, 'Alfa');
+    };
 }
 
-window.addEventListener('DOMContentLoaded', () => {
-    initCommonUI();
-    if (document.getElementById('auth-modal')) initAbsensiPage();
-});
+// ========== AUTO INIT ==========
+if (document.getElementById('log-tbody')) window.addEventListener('DOMContentLoaded', initAbsensiPage);
+window.addEventListener('DOMContentLoaded', initCommonUI);
 
-// Mood/Tugas localStorage - sama seperti sebelumnya
-window.loadMoodFromLocal = function() { return JSON.parse(localStorage.getItem('xiphorix_mood') || '{"happy":0,"stress":0}'); };
-window.saveMoodToLocal = function(mood) { localStorage.setItem('xiphorix_mood', JSON.stringify(mood)); };
-window.loadTugasFromLocal = function() { return JSON.parse(localStorage.getItem('xiphorix_tugas') || '[]'); };
-window.saveTugasToLocal = function(tugas) { localStorage.setItem('xiphorix_tugas', JSON.stringify(tugas)); };
+// Tugas utils (used by tugas.js)
+window.escapeHtml = escapeHtml;
+window.showToast = showToast;
+window.formatTanggalIndo = formatTanggalIndo;
 

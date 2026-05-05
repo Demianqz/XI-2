@@ -1,17 +1,31 @@
-# XIPHORIX Hybrid Update Progress
+# XIPHORIX Revert to Web Awal - Progress Tracker
 
-## Completed ✅
-- [x] Replace script.js with hybrid Cloud + LocalStorage (local-first, 5s timeout)
-- [x] Replace tugas.js with localStorage-only version  
-- [x] Update jadwal.html mood script to localStorage (1x/day voting)
+## Plan Steps ✅ Completed: Step 1
 
-## Next Steps
-1. Update `scriptURL` in script.js with your GAS deploy URL if needed
-2. Test absensi.html: Auth → local data shows instantly → cloud sync toast
-3. Test tugas.html: Add/delete tugas persists in localStorage
-4. Test jadwal.html: Mood voting works offline, 1x/day limit
-5. Open in browser: F5 refresh all pages
-6. Verify: Offline fallback, background sync toasts
+### 1. ✅ Delete Unnecessary Files
+   - ✅ Deleted GAS-backend.js 
+   - ✅ Deleted script-old-broken.js
 
-All files updated per approved plan.
+### 2. [ ] Update script.js (Next)
+   - Remove GAS/cloud logic → pure localStorage absensi
+
+### 3. [ ] Simplify absensi.html
+
+### 4. [ ] Simplify style.css
+
+### 5. [ ] Minor HTML tweaks
+
+### 6. [ ] Test & Complete
+
+### 2. ✅ script.js updated (local only)
+
+### 3. ✅ absensi.html simplified (no auth/cloud)
+
+### 4. ✅ style-simple.css created (clean flat design)
+
+### 5. [ ] Apply style-simple.css
+
+### 6. [ ] Final tests
+
+**Ready for testing! Open index.html**
 
